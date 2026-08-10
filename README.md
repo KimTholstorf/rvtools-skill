@@ -21,7 +21,9 @@ It combines a deterministic local Python analysis engine with agent-guided inter
 
 The launcher never uses `sudo` or installs packages globally. When needed, it creates a private environment in the plugin's writable data directory and installs pinned, hash-verified wheels for `openpyxl`, `et_xmlfile`, and `defusedxml`.
 
-## Install in Claude Code
+## Install with Claude
+
+### Claude Code CLI
 
 ```bash
 claude plugin marketplace add KimTholstorf/rvtools-skill
@@ -35,6 +37,15 @@ Use normal conversation or invoke the short command explicitly:
 ```text
 /rvtools:analyze How many powered-off VMs are in this workbook?
 ```
+
+### Claude Desktop
+
+1. Open the [latest GitHub release](https://github.com/KimTholstorf/rvtools-skill/releases/latest).
+2. Under **Assets**, download `rvtools-skill-<version>.zip`. Do not use GitHub's automatically generated source-code ZIP.
+3. In Claude Desktop, open **Settings → Customize → Skills → Add → Upload a skill**.
+4. Select the downloaded ZIP and enable **RVTools Analyzer**.
+
+The release ZIP is built only after the tagged commit passes CI and contains the standalone skill bundle expected by Claude Desktop. Use normal conversation after enabling it; the `/rvtools:analyze` command belongs to the Claude Code plugin installation.
 
 ## Install in Codex
 
