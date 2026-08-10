@@ -134,6 +134,19 @@ class SkillContractTests(unittest.TestCase):
         self.assertNotIn("python3 scripts/parse_rvtools.py", skill)
         self.assertNotIn("python3 scripts/query_rvtools.py", skill)
 
+    def test_report_template_uses_oracle_inspired_red_header_palette(self):
+        template = (ROOT / "assets" / "report-template.html").read_text(
+            encoding="utf-8"
+        ).casefold()
+
+        self.assertIn("--accent: #c74634;", template)
+        self.assertIn(
+            "background: linear-gradient(130deg, #312d2a 0%, #312d2a 34%, #c74634 100%);",
+            template,
+        )
+        self.assertNotIn("#4f46e5", template)
+        self.assertNotIn("#3730a3", template)
+
     def test_hygiene_requires_vendor_lifecycle_research(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         hygiene = (ROOT / "references" / "hygiene.md").read_text(encoding="utf-8")
