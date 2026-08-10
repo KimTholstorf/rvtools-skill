@@ -2,7 +2,7 @@
 
 All notable changes to RVTools Analyzer are documented here.
 
-## [0.1.0-beta.1] - 2026-08-10
+## [0.1.0] - 2026-08-10
 
 ### Added
 
@@ -16,4 +16,4 @@ All notable changes to RVTools Analyzer are documented here.
 - First-class Claude Code and Codex plugin marketplace packaging.
 - Short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
-[0.1.0-beta.1]: https://github.com/KimTholstorf/rvtools-skill/releases/tag/v0.1.0-beta.1
+[0.1.0]: https://github.com/KimTholstorf/rvtools-skill/releases/tag/v0.1.0

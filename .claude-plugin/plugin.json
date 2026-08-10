@@ -1,6 +1,6 @@
 {
   "name": "rvtools",
-  "version": "0.1.0-beta.1",
+  "version": "0.1.0",
   "description": "Analyze and conversationally query VMware RVTools exports for migration readiness, health, hardware lifecycle, and capacity.",
   "author": {
     "name": "Kim Tholstorf",

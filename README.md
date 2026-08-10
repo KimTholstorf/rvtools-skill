@@ -100,7 +100,7 @@ The repository also contains Codex plugin and skill manifests under `.codex-plug
 
 ## Versioning
 
-RVTools Analyzer follows semantic versioning. During the beta, interfaces and finding thresholds may change based on user feedback. Plugin manifest versions are kept aligned across Claude and Codex.
+RVTools Analyzer follows semantic versioning. Before 1.0, interfaces and finding thresholds may change based on user feedback. Plugin manifest versions are kept aligned across Claude and Codex.
 
 ## License
 
