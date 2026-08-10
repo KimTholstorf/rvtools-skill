@@ -2,6 +2,12 @@
 
 All notable changes to RVTools Analyzer are documented here.
 
+## [0.1.1] - 2026-08-10
+
+### Changed
+
+- Redesigned the self-contained HTML report with a flat Oracle-inspired presentation style, clearer assessment hierarchy, responsive behavior, and print/PDF optimization.
+
 ## [0.1.0] - 2026-08-10
 
 ### Added
@@ -16,4 +22,5 @@ All notable changes to RVTools Analyzer are documented here.
 - First-class Claude Code and Codex plugin marketplace packaging.
 - Short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.1.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/KimTholstorf/rvtools-skill/releases/tag/v0.1.0
