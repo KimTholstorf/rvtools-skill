@@ -2,6 +2,17 @@
 
 All notable changes to RVTools Analyzer are documented here.
 
+## [0.1.2] - 2026-08-10
+
+### Added
+
+- Added a separate release workflow that packages a Claude Desktop-compatible skill ZIP only after CI succeeds for a version-tagged commit.
+
+### Fixed
+
+- Closed RVTools workbook handles after parsing and query indexing so Windows can clean up temporary files.
+- Avoided calling the POSIX-only `os.fchmod` API when it is unavailable on Windows.
+
 ## [0.1.1] - 2026-08-10
 
 ### Changed
@@ -26,5 +37,6 @@ All notable changes to RVTools Analyzer are documented here.
 - First-class Claude Code and Codex plugin marketplace packaging.
 - Short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.1.2]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/KimTholstorf/rvtools-skill/releases/tag/v0.1.0

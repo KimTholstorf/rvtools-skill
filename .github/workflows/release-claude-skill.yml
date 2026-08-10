@@ -1,0 +1,103 @@
+name: Release Claude Desktop skill
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+
+      - name: Resolve an exact release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(git tag --points-at "$WORKFLOW_SHA" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+          if [[ -z "$tag" ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          version="${tag#v}"
+          codex_version="$(python -c 'import json; print(json.load(open(".codex-plugin/plugin.json"))["version"])')"
+          claude_version="$(python -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')"
+          if [[ "$version" != "$codex_version" || "$version" != "$claude_version" ]]; then
+            echo "Tag $tag does not match both plugin manifests" >&2
+            exit 1
+          fi
+
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Build and validate the Claude Desktop ZIP
+        if: steps.release.outputs.eligible == 'true'
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ steps.release.outputs.version }}"
+          archive="dist/rvtools-skill-${version}.zip"
+          mkdir -p dist
+          git archive \
+            --format=zip \
+            --prefix=rvtools-analyzer/ \
+            --output="$archive" \
+            "$WORKFLOW_SHA" \
+            SKILL.md assets/report-template.html references scripts
+
+          listing="$(mktemp)"
+          unzip -Z1 "$archive" > "$listing"
+          grep -Fxq "rvtools-analyzer/SKILL.md" "$listing"
+          grep -Fxq "rvtools-analyzer/assets/report-template.html" "$listing"
+          grep -Fxq "rvtools-analyzer/scripts/run_rvtools.py" "$listing"
+          grep -Fxq "rvtools-analyzer/references/querying.md" "$listing"
+          awk -F/ '$1 != "rvtools-analyzer" { exit 1 }' "$listing"
+          if grep -Eq '(^|/)(samples|\.git|__pycache__)(/|$)' "$listing"; then
+            echo "Archive contains a private or development-only path" >&2
+            exit 1
+          fi
+
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Attach ZIP to the GitHub Release
+        if: steps.release.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          asset_name="$(basename "$ARCHIVE")"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fxq "$asset_name"; then
+              echo "$asset_name is already attached to $RELEASE_TAG"
+              exit 0
+            fi
+            gh release upload "$RELEASE_TAG" "$ARCHIVE"
+          else
+            gh release create "$RELEASE_TAG" "$ARCHIVE" \
+              --verify-tag \
+              --title "RVTools Analyzer $RELEASE_VERSION" \
+              --generate-notes
+          fi

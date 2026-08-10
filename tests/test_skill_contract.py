@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.1.1")
+        self.assertEqual(manifest["version"], "0.1.2")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -122,8 +122,33 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("## [0.1.1] - 2026-08-10", changelog)
+        self.assertIn("## [0.1.2] - 2026-08-10", changelog)
         self.assertNotIn("beta", changelog.casefold())
+
+    def test_claude_desktop_zip_is_released_only_after_successful_tagged_ci(self):
+        workflow_path = ROOT / ".github" / "workflows" / "release-claude-skill.yml"
+
+        self.assertTrue(workflow_path.is_file())
+        workflow = workflow_path.read_text(encoding="utf-8")
+        for required in (
+            "workflow_run:",
+            'workflows: ["CI"]',
+            "types: [completed]",
+            "github.event.workflow_run.conclusion == 'success'",
+            "github.event.workflow_run.event == 'push'",
+            "github.event.workflow_run.head_sha",
+            "git tag --points-at",
+            "contents: write",
+            "--prefix=rvtools-analyzer/",
+            "SKILL.md",
+            "assets/report-template.html",
+            "references",
+            "scripts",
+            "rvtools-skill-${version}.zip",
+            "gh release create",
+            "gh release upload",
+        ):
+            self.assertIn(required, workflow)
 
     def test_skill_routes_commands_through_runtime_launcher(self):
         skill = (ROOT / "skills" / "rvtools-analyzer" / "SKILL.md").read_text(
