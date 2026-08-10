@@ -267,7 +267,7 @@ class QueryRVToolsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not allowed"):
             QUERY.run_query(self.path, {"entity": "vm", "select": ["annotation"]})
 
-    def test_reuses_owner_only_sqlite_index(self):
+    def test_reuses_sqlite_index_with_private_posix_permissions(self):
         self.assertTrue(hasattr(QUERY, "run_query"))
         index_path = Path(self.tempdir.name) / "inventory.sqlite"
         plan = {"entity": "vm", "metrics": ["count"]}
@@ -277,7 +277,10 @@ class QueryRVToolsTests(unittest.TestCase):
 
         self.assertFalse(first["index_reused"])
         self.assertTrue(second["index_reused"])
-        self.assertEqual(index_path.stat().st_mode & 0o777, 0o600)
+        self.assertTrue(index_path.is_file())
+        # Windows uses inherited ACLs; st_mode cannot express owner-only access.
+        if os.name != "nt":
+            self.assertEqual(index_path.stat().st_mode & 0o777, 0o600)
         self.assertEqual(second["rows"], [{"count": 3}])
 
         workbook = load_workbook(self.path)

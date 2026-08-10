@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -514,7 +515,7 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertIn("source workbook", completed.stderr)
         self.assertEqual(self.path.read_bytes(), original)
 
-    def test_cli_writes_output_with_owner_only_permissions(self):
+    def test_cli_writes_output_and_uses_private_posix_permissions(self):
         output_path = Path(self.tempdir.name) / "analysis.json"
 
         completed = subprocess.run(
@@ -525,7 +526,10 @@ class ParseInventoryTests(unittest.TestCase):
         )
 
         self.assertEqual(completed.returncode, 0, completed.stderr)
-        self.assertEqual(output_path.stat().st_mode & 0o777, 0o600)
+        self.assertTrue(output_path.is_file())
+        # Windows uses inherited ACLs; st_mode cannot express owner-only access.
+        if os.name != "nt":
+            self.assertEqual(output_path.stat().st_mode & 0o777, 0o600)
 
 
 if __name__ == "__main__":

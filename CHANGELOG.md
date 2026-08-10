@@ -8,6 +8,10 @@ All notable changes to RVTools Analyzer are documented here.
 
 - Redesigned the self-contained HTML report with a flat Oracle-inspired presentation style, clearer assessment hierarchy, responsive behavior, and print/PDF optimization.
 
+### Fixed
+
+- Made privacy-permission tests portable to Windows, where access is represented by ACLs rather than POSIX mode bits.
+
 ## [0.1.0] - 2026-08-10
 
 ### Added
