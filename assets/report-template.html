@@ -7,123 +7,477 @@
   <style>
     :root {
       color-scheme: light;
-      --ink: #172033;
-      --muted: #647087;
-      --paper: #f5f7fb;
-      --card: #ffffff;
-      --line: #dce2ec;
-      --accent: #c74634;
-      --critical: #a61b1b;
-      --high: #c2410c;
-      --medium: #a16207;
-      --low: #2563eb;
-      --good: #087f5b;
+      --oracle-red: #c74634;
+      --bark: #312d2a;
+      --sand: #f1efed;
+      --paper: #f7f6f4;
+      --surface: #ffffff;
+      --ink: #1f1c1a;
+      --muted: #625d59;
+      --line: #d9d4cf;
+      --line-strong: #aaa29b;
+      --critical: #9b1c1c;
+      --critical-tint: #fff1ef;
+      --high: #b9471d;
+      --high-tint: #fff4ec;
+      --medium: #826100;
+      --medium-tint: #fff8df;
+      --low: #2f6384;
+      --low-tint: #edf6fa;
+      --good: #2f6b4f;
+      --good-tint: #edf7f1;
     }
+
     * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
     body {
       margin: 0;
       background: var(--paper);
       color: var(--ink);
       font: 15px/1.55 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      text-rendering: optimizeLegibility;
     }
-    main { width: min(1180px, calc(100% - 32px)); margin: 32px auto 56px; }
-    header {
-      padding: 30px;
-      border-radius: 20px;
-      color: #fff;
-      background: linear-gradient(130deg, #312d2a 0%, #312d2a 34%, #c74634 100%);
-      box-shadow: 0 16px 38px rgba(49, 45, 42, .22);
+
+    main {
+      width: min(1180px, calc(100% - 40px));
+      margin: 24px auto 56px;
     }
-    header p { max-width: 78ch; margin-bottom: 0; color: #f1efed; }
-    h1 { margin: 0; font-size: clamp(28px, 5vw, 48px); line-height: 1.06; }
-    h2 { margin: 30px 0 12px; font-size: 21px; }
-    h3 { margin: 0 0 7px; font-size: 16px; }
-    .eyebrow { margin-bottom: 10px; font-size: 12px; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
-    .grid { display: grid; gap: 14px; }
-    .kpis { grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); margin-top: 18px; }
-    .kpi, .card, .finding {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      box-shadow: 0 7px 20px rgba(31, 42, 68, .05);
+
+    .report-header {
+      overflow: hidden;
+      border: 1px solid var(--bark);
+      border-radius: 8px;
+      background: var(--bark);
     }
-    .kpi { padding: 17px; }
-    .kpi strong { display: block; font-size: 26px; line-height: 1.2; }
-    .kpi span { color: var(--muted); font-size: 13px; }
-    .card { padding: 20px; }
-    .findings { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
-    .finding { padding: 18px; border-left: 5px solid var(--medium); }
-    .finding.high { border-left-color: var(--high); }
-    .finding.critical { border-left-color: var(--critical); }
-    .finding.low { border-left-color: var(--low); }
-    .finding.good { border-left-color: var(--good); }
-    .badge {
-      display: inline-block;
-      margin-bottom: 10px;
-      padding: 3px 8px;
-      border-radius: 999px;
-      background: #fff7ed;
-      color: var(--high);
+
+    .masthead {
+      min-height: 245px;
+      padding: 44px 48px 48px;
+      background: var(--oracle-red);
+      color: #ffffff;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .eyebrow,
+    .section-label,
+    .summary-label {
       font-size: 11px;
-      font-weight: 800;
-      letter-spacing: .06em;
+      font-weight: 750;
+      letter-spacing: .14em;
       text-transform: uppercase;
     }
-    .meta { color: var(--muted); font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { padding: 10px 11px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-    th { color: var(--muted); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
-    ol.timeline { margin: 0; padding-left: 22px; }
-    ol.timeline li { padding: 4px 0 12px 5px; }
-    footer { margin-top: 28px; color: var(--muted); font-size: 12px; }
-    a { color: var(--accent); }
-    @media (max-width: 620px) {
-      main { width: min(100% - 18px, 1180px); margin-top: 9px; }
-      header { padding: 22px; border-radius: 14px; }
-      .card { padding: 16px; overflow-x: auto; }
+
+    .eyebrow {
+      margin-bottom: 18px;
+      color: #ffffff;
+    }
+
+    h1 {
+      max-width: 900px;
+      margin: 0;
+      font-size: clamp(34px, 5vw, 58px);
+      font-weight: 650;
+      letter-spacing: -.035em;
+      line-height: 1.02;
+    }
+
+    .executive-summary {
+      display: grid;
+      grid-template-columns: 160px minmax(0, 1fr);
+      gap: 28px;
+      padding: 26px 48px 29px;
+      color: #ffffff;
+    }
+
+    .summary-label {
+      padding-top: 3px;
+      color: #f4b9ae;
+    }
+
+    .executive-summary p {
+      max-width: 88ch;
+      margin: 0;
+      color: #f7f3f1;
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    .report-section { margin-top: 40px; }
+    .report-section.overview { margin-top: 22px; }
+
+    .section-label {
+      margin-bottom: 10px;
+      color: var(--oracle-red);
+    }
+
+    h2 {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin: 0 0 14px;
+      color: var(--bark);
+      font-size: 23px;
+      font-weight: 650;
+      letter-spacing: -.018em;
+      line-height: 1.2;
+    }
+
+    h2::after {
+      height: 1px;
+      flex: 1;
+      background: var(--line);
+      content: "";
+    }
+
+    h3 {
+      margin: 0 0 7px;
+      color: var(--bark);
+      font-size: 16px;
+      line-height: 1.35;
+    }
+
+    p { margin-top: 0; }
+    p:last-child { margin-bottom: 0; }
+
+    .grid { display: grid; gap: 12px; }
+
+    .kpis {
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    }
+
+    .kpi,
+    .card,
+    .finding {
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface);
+    }
+
+    .kpi {
+      min-height: 106px;
+      padding: 18px 18px 16px;
+      border-top: 3px solid var(--bark);
+    }
+
+    .kpi strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--bark);
+      font-size: 30px;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.035em;
+      line-height: 1;
+    }
+
+    .kpi span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      letter-spacing: .025em;
+    }
+
+    .findings {
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+    }
+
+    .finding {
+      padding: 20px 21px 21px;
+      border-left: 5px solid var(--medium);
+      background: var(--medium-tint);
+      break-inside: avoid;
+    }
+
+    .finding.high {
+      border-left-color: var(--high);
+      background: var(--high-tint);
+    }
+
+    .finding.critical {
+      border-left-color: var(--critical);
+      background: var(--critical-tint);
+    }
+
+    .finding.low {
+      border-left-color: var(--low);
+      background: var(--low-tint);
+    }
+
+    .finding.good {
+      border-left-color: var(--good);
+      background: var(--good-tint);
+    }
+
+    .badge {
+      display: inline-block;
+      margin-bottom: 11px;
+      padding: 3px 7px;
+      border: 1px solid currentColor;
+      border-radius: 3px;
+      color: var(--medium);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .08em;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }
+
+    .finding.high .badge { color: var(--high); }
+    .finding.critical .badge { color: var(--critical); }
+    .finding.low .badge { color: var(--low); }
+    .finding.good .badge { color: var(--good); }
+
+    .card {
+      padding: 0;
+      overflow-x: auto;
+    }
+
+    .card > :not(table):not(.timeline) {
+      margin-right: 22px;
+      margin-left: 22px;
+    }
+
+    .card > :first-child:not(table):not(.timeline) { margin-top: 20px; }
+    .card > :last-child:not(table):not(.timeline) { margin-bottom: 20px; }
+
+    .meta {
+      padding: 21px 22px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    th,
+    td {
+      padding: 11px 13px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: var(--sand);
+      color: var(--bark);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .07em;
+      line-height: 1.35;
+      text-transform: uppercase;
+    }
+
+    tbody tr:nth-child(even) td { background: #fbfaf9; }
+    tbody tr:last-child td { border-bottom: 0; }
+
+    ol.timeline {
+      margin: 0;
+      padding: 22px 24px 11px;
+      list-style: none;
+      counter-reset: recommendation;
+    }
+
+    ol.timeline li {
+      position: relative;
+      min-height: 42px;
+      padding: 0 0 17px 46px;
+      counter-increment: recommendation;
+    }
+
+    ol.timeline li::before {
+      position: absolute;
+      top: -2px;
+      left: 0;
+      width: 28px;
+      height: 28px;
+      border: 1px solid var(--oracle-red);
+      border-radius: 50%;
+      color: var(--oracle-red);
+      content: counter(recommendation, decimal-leading-zero);
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 27px;
+      text-align: center;
+    }
+
+    ol.timeline li:not(:last-child)::after {
+      position: absolute;
+      top: 29px;
+      bottom: 0;
+      left: 14px;
+      width: 1px;
+      background: var(--line);
+      content: "";
+    }
+
+    ul,
+    ol { padding-left: 21px; }
+    li + li { margin-top: 5px; }
+
+    footer {
+      margin-top: 42px;
+      padding: 15px 2px 0;
+      border-top: 3px solid var(--oracle-red);
+      color: var(--muted);
+      font-size: 11px;
+      overflow-wrap: anywhere;
+    }
+
+    a {
+      color: #8d2f24;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
+    }
+
+    a:focus-visible {
+      outline: 3px solid #f0cc72;
+      outline-offset: 3px;
+    }
+
+    @media (max-width: 700px) {
+      main {
+        width: min(100% - 18px, 1180px);
+        margin-top: 9px;
+      }
+
+      .masthead {
+        min-height: 210px;
+        padding: 30px 24px 32px;
+      }
+
+      .executive-summary {
+        grid-template-columns: 1fr;
+        gap: 8px;
+        padding: 22px 24px 25px;
+      }
+
+      h1 { font-size: clamp(31px, 11vw, 45px); }
+      h2 { font-size: 20px; }
+      .report-section { margin-top: 32px; }
+      .findings { grid-template-columns: 1fr; }
+      .card { overflow-x: auto; }
+      th, td { min-width: 120px; }
+    }
+
+    @page {
+      size: A4;
+      margin: 13mm;
+    }
+
+    @media print {
+      :root { --paper: #ffffff; }
+
+      body {
+        background: #ffffff;
+        font-size: 10.5pt;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      main {
+        width: 100%;
+        margin: 0;
+      }
+
+      .report-header { break-after: avoid; }
+
+      .masthead {
+        min-height: 55mm;
+        padding: 10mm;
+      }
+
+      .executive-summary { padding: 7mm 10mm; }
+      .report-section { margin-top: 9mm; }
+      .report-section.overview { margin-top: 6mm; }
+      h1 { font-size: 30pt; }
+      h2 { font-size: 16pt; }
+
+      .kpis { grid-template-columns: repeat(4, 1fr); }
+
+      .kpi,
+      .finding,
+      ol.timeline li {
+        break-inside: avoid;
+      }
+
+      .card { overflow: visible; }
+      table { font-size: 8.2pt; }
+      th, td { padding: 2.2mm 2.5mm; }
+      thead { display: table-header-group; }
+      tr { break-inside: avoid; }
+      a { color: inherit; }
+      footer { margin-top: 9mm; }
     }
   </style>
 </head>
 <body>
   <main>
-    <header>
-      <div class="eyebrow">{{LENS_LABEL}} · {{ASSESSMENT_DATE}}</div>
-      <h1>{{REPORT_TITLE}}</h1>
-      <p>{{EXECUTIVE_SUMMARY}}</p>
+    <header class="report-header">
+      <div class="masthead">
+        <div class="eyebrow">{{LENS_LABEL}} · {{ASSESSMENT_DATE}}</div>
+        <h1>{{REPORT_TITLE}}</h1>
+      </div>
+      <div class="executive-summary">
+        <div class="summary-label">Executive summary</div>
+        <p>{{EXECUTIVE_SUMMARY}}</p>
+      </div>
     </header>
 
-    <section class="grid kpis">
-      {{KPI_CARDS}}
+    <section class="report-section overview">
+      <div class="section-label">Assessment at a glance</div>
+      <div class="grid kpis">
+        {{KPI_CARDS}}
+      </div>
     </section>
 
-    <h2>Priority findings</h2>
-    <section class="grid findings">
-      {{FINDING_CARDS}}
+    <section class="report-section">
+      <h2>Priority findings</h2>
+      <div class="grid findings">
+        {{FINDING_CARDS}}
+      </div>
     </section>
 
-    <h2>Inventory and capacity</h2>
-    <section class="card">
-      {{INVENTORY_TABLE}}
+    <section class="report-section">
+      <h2>Inventory and capacity</h2>
+      <div class="card">
+        {{INVENTORY_TABLE}}
+      </div>
     </section>
 
-    <h2>CPU and memory overcommit</h2>
-    <section class="card">
-      {{OVERCOMMIT_TABLE}}
+    <section class="report-section">
+      <h2>CPU and memory overcommit</h2>
+      <div class="card">
+        {{OVERCOMMIT_TABLE}}
+      </div>
     </section>
 
-    <h2>Recommended sequence</h2>
-    <section class="card">
-      <ol class="timeline">{{REMEDIATION_STEPS}}</ol>
+    <section class="report-section">
+      <h2>Recommended sequence</h2>
+      <div class="card">
+        <ol class="timeline">{{REMEDIATION_STEPS}}</ol>
+      </div>
     </section>
 
-    <h2>Coverage gaps and assumptions</h2>
-    <section class="card">
-      {{COVERAGE_GAPS}}
+    <section class="report-section">
+      <h2>Coverage gaps and assumptions</h2>
+      <div class="card">
+        {{COVERAGE_GAPS}}
+      </div>
     </section>
 
-    <h2>Method and sources</h2>
-    <section class="card meta">
-      {{METHOD_AND_SOURCES}}
+    <section class="report-section">
+      <h2>Method and sources</h2>
+      <div class="card meta">
+        {{METHOD_AND_SOURCES}}
+      </div>
     </section>
 
     <footer>{{SOURCE_IDENTITY}}</footer>

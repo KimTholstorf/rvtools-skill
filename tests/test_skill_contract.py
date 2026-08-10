@@ -134,18 +134,53 @@ class SkillContractTests(unittest.TestCase):
         self.assertNotIn("python3 scripts/parse_rvtools.py", skill)
         self.assertNotIn("python3 scripts/query_rvtools.py", skill)
 
-    def test_report_template_uses_oracle_inspired_red_header_palette(self):
+    def test_report_template_uses_flat_oracle_inspired_design_system(self):
         template = (ROOT / "assets" / "report-template.html").read_text(
             encoding="utf-8"
         ).casefold()
 
-        self.assertIn("--accent: #c74634;", template)
-        self.assertIn(
-            "background: linear-gradient(130deg, #312d2a 0%, #312d2a 34%, #c74634 100%);",
-            template,
-        )
+        self.assertIn("--oracle-red: #c74634;", template)
+        self.assertIn("--bark: #312d2a;", template)
+        self.assertIn("--sand: #f1efed;", template)
+        self.assertIn("background: var(--oracle-red);", template)
+        self.assertNotIn("linear-gradient", template)
+        self.assertNotIn("box-shadow", template)
         self.assertNotIn("#4f46e5", template)
         self.assertNotIn("#3730a3", template)
+
+    def test_report_template_is_responsive_and_print_ready(self):
+        template = (ROOT / "assets" / "report-template.html").read_text(
+            encoding="utf-8"
+        ).casefold()
+
+        self.assertIn("@media (max-width: 700px)", template)
+        self.assertIn("@media print", template)
+        self.assertIn("@page", template)
+        self.assertIn("thead { display: table-header-group; }", template)
+        self.assertIn("break-inside: avoid", template)
+
+    def test_report_template_preserves_content_slots_in_semantic_sections(self):
+        template = (ROOT / "assets" / "report-template.html").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertEqual(template.count('class="report-section'), 7)
+        for slot in (
+            "REPORT_TITLE",
+            "LENS_LABEL",
+            "ASSESSMENT_DATE",
+            "EXECUTIVE_SUMMARY",
+            "KPI_CARDS",
+            "FINDING_CARDS",
+            "INVENTORY_TABLE",
+            "OVERCOMMIT_TABLE",
+            "REMEDIATION_STEPS",
+            "COVERAGE_GAPS",
+            "METHOD_AND_SOURCES",
+            "SOURCE_IDENTITY",
+        ):
+            expected_count = 2 if slot == "REPORT_TITLE" else 1
+            self.assertEqual(template.count("{{" + slot + "}}"), expected_count)
 
     def test_hygiene_requires_vendor_lifecycle_research(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
