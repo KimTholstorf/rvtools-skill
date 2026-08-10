@@ -1,0 +1,37 @@
+{
+  "name": "rvtools-analyzer",
+  "version": "0.1.0-beta.1",
+  "description": "Analyze and conversationally query VMware RVTools exports for migration readiness, health, hardware lifecycle, and capacity.",
+  "author": {
+    "name": "Kim Tholstorf",
+    "url": "https://github.com/KimTholstorf"
+  },
+  "homepage": "https://github.com/KimTholstorf/rvtools-skill",
+  "repository": "https://github.com/KimTholstorf/rvtools-skill",
+  "license": "MIT",
+  "keywords": [
+    "rvtools",
+    "vmware",
+    "ocvs",
+    "hcx",
+    "health-check"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "RVTools Analyzer",
+    "shortDescription": "Query and assess VMware RVTools exports",
+    "longDescription": "Conversationally query RVTools inventory and produce evidence-based OCVS/HCX migration, VCF readiness, and vSphere health assessments.",
+    "developerName": "Kim Tholstorf",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Instructions",
+      "Local file analysis",
+      "Reports"
+    ],
+    "defaultPrompt": [
+      "Analyze this RVTools export for OCVS migration risks.",
+      "Run a health check on this RVTools workbook.",
+      "Answer questions about this VMware inventory."
+    ]
+  }
+}

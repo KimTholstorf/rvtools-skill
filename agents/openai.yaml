@@ -1,0 +1,4 @@
+interface:
+  display_name: "RVTools Analyzer"
+  short_description: "Query and assess VMware RVTools exports"
+  default_prompt: "Use $rvtools-analyzer to explore this RVTools export conversationally and assess its most important risks."

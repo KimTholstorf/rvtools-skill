@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+samples/
+outputs/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+.venv/
+dist/
+.claude/settings.local.json
+PROJECT_HANDOFF.md

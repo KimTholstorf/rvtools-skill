@@ -1,0 +1,16 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "rvtools-analyzer",
+  "description": "RVTools inventory querying and VMware migration and health analysis.",
+  "owner": {
+    "name": "Kim Tholstorf"
+  },
+  "plugins": [
+    {
+      "name": "rvtools",
+      "description": "Analyze and query RVTools exports for migration readiness and vSphere health.",
+      "source": "./",
+      "category": "productivity"
+    }
+  ]
+}
