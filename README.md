@@ -1,25 +1,27 @@
 # RVTools Analyzer
 
-RVTools Analyzer lets Claude Code and Codex query VMware RVTools XLSX exports conversationally and produce evidence-based OCVS/HCX migration, VCF readiness, and vSphere health-check assessments.
+RVTools exports contain a lot of useful information, but working through every worksheet by hand gets old quickly. RVTools Analyzer lets you give an export to Claude or Codex and ask questions in plain language. It can also turn the same data into an OCVS/HCX migration assessment, a VCF readiness review, or a vSphere health check.
 
-It combines a deterministic local Python analysis engine with agent-guided interpretation. Inventory values, overcommit ratios, query results, and built-in detections come from code; the agent applies the requested lens, researches time-sensitive vendor lifecycle facts, and writes the report.
+The numbers come from Python, not guesswork. The agent uses that calculated data to answer follow-up questions, apply the right assessment lens, check time-sensitive hardware lifecycle information, and write the final report.
 
-## Capabilities
+## What it can do
 
-- Answer inventory questions such as VM counts, guest operating systems, power state, host hardware, and cluster membership.
-- Calculate CPU and memory overcommit ratios for powered-on workloads.
-- Assess OCVS and VMware HCX migration risks.
-- Assess on-premises VMware Cloud Foundation readiness.
-- Run a vSphere health check covering snapshots, tools, devices, networking, storage, capacity, hardware lifecycle, and Hyper-Threading.
-- Produce self-contained HTML and Markdown reports.
+- Answer everyday inventory questions: How many VMs run Linux? Which VMs are powered off? What hardware is in cluster X?
+- Calculate CPU and memory overcommit ratios from powered-on workloads.
+- Find risks that matter to OCVS and VMware HCX migrations.
+- Review an environment for on-premises VMware Cloud Foundation.
+- Check snapshots, VMware Tools, removable devices, networking, storage, capacity, host lifecycle, and Hyper-Threading.
+- Produce self-contained HTML and Markdown reports that are ready to share or refine.
 
 ## Requirements
 
-- Claude Code or Codex/ChatGPT desktop with plugin support.
+You will need:
+
+- Claude Code, Claude Desktop, or Codex/ChatGPT desktop with the relevant skill or plugin support.
 - Python 3.8 or newer with the standard-library `venv` module.
 - Network access on first use if the pinned Python dependencies are not already available.
 
-The launcher never uses `sudo` or installs packages globally. When needed, it creates a private environment in the plugin's writable data directory and installs pinned, hash-verified wheels for `openpyxl`, `et_xmlfile`, and `defusedxml`.
+The launcher does not use `sudo` or install packages globally. If the required packages are missing, it creates a private Python environment in the plugin's writable data directory and installs pinned, hash-verified versions of `openpyxl`, `et_xmlfile`, and `defusedxml` there.
 
 ## Install with Claude
 
@@ -30,9 +32,9 @@ claude plugin marketplace add KimTholstorf/rvtools-skill
 claude plugin install rvtools@rvtools-analyzer
 ```
 
-If Claude asks you to reload plugins, run `/reload-plugins` or start a new session.
+If Claude asks for a plugin reload, run `/reload-plugins` or start a fresh session.
 
-Use normal conversation or invoke the short command explicitly:
+You can chat normally or call the command directly:
 
 ```text
 /rvtools:analyze How many powered-off VMs are in this workbook?
@@ -45,7 +47,7 @@ Use normal conversation or invoke the short command explicitly:
 3. In Claude Desktop, open **Settings → Customize → Skills → Add → Upload a skill**.
 4. Select the downloaded ZIP and enable **RVTools Analyzer**.
 
-The release ZIP is built only after the tagged commit passes CI and contains the standalone skill bundle expected by Claude Desktop. Use normal conversation after enabling it; the `/rvtools:analyze` command belongs to the Claude Code plugin installation.
+The release ZIP is built only after the tagged commit passes CI. It contains the standalone skill bundle expected by Claude Desktop. Once enabled, just start a conversation and attach an RVTools export. The `/rvtools:analyze` command is only part of the Claude Code plugin installation.
 
 ## Install in Codex
 
@@ -54,9 +56,9 @@ codex plugin marketplace add KimTholstorf/rvtools-skill --ref main
 codex plugin add rvtools-analyzer@rvtools-analyzer
 ```
 
-You can also install RVTools Analyzer from the added marketplace in the ChatGPT desktop Plugins Directory. Start a new task after installation.
+You can also find RVTools Analyzer in the ChatGPT desktop Plugins Directory after adding the marketplace. Start a new task once installation finishes.
 
-Use normal conversation or invoke the skill explicitly:
+Then chat normally or invoke the skill explicitly:
 
 ```text
 $rvtools-analyzer Run an OCVS migration analysis on this RVTools export.
@@ -64,7 +66,7 @@ $rvtools-analyzer Run an OCVS migration analysis on this RVTools export.
 
 ## Examples
 
-Attach or provide the local path to an RVTools `.xlsx` export, then ask:
+Attach an RVTools `.xlsx` export, or provide its local path, and ask something like:
 
 - “How many virtual machines are powered off?”
 - “How many Linux VMs run in each cluster?”
@@ -73,11 +75,11 @@ Attach or provide the local path to an RVTools `.xlsx` export, then ask:
 - “Run a vSphere health check and create an HTML report.”
 - “Assess this environment for an OCVS migration using HCX.”
 
-Simple factual questions return directly in chat. Assessments create an HTML report in interactive sessions and Markdown in file-oriented sessions unless you request another supported format.
+Short factual questions get a direct answer in chat. A full assessment creates an HTML report in an interactive session or a Markdown report in a file-oriented session, unless you ask for a different supported format.
 
 ## Data handling and privacy
 
-RVTools exports contain sensitive infrastructure data. The skill instructs the agent to:
+An RVTools export can describe nearly every corner of a VMware environment, so treat it like sensitive infrastructure documentation. The skill tells the agent to:
 
 - Keep the workbook, parser output, and SQLite query index local.
 - Preserve the source workbook and write reports separately.
@@ -85,13 +87,13 @@ RVTools exports contain sensitive infrastructure data. The skill instructs the a
 - Return bounded examples rather than full infrastructure inventories.
 - Use only vendor and model identifiers—not the raw workbook—when researching hardware lifecycle status.
 
-The first-use Python dependency download contacts the configured Python package index. Hardware lifecycle and current compatibility research may access primary vendor documentation. The workbook itself is not intentionally uploaded by the skill or its scripts.
+The parser and query scripts do not contain code that uploads the workbook. If you attach the file to Claude or ChatGPT, the platform's own file-handling and retention terms still apply. On first use, the launcher may contact the configured Python package index to download its pinned dependencies. Hardware lifecycle and compatibility checks may also consult public vendor documentation, but they use vendor and model identifiers rather than the workbook itself.
 
 ## Scope and limitations
 
-RVTools is an inventory snapshot. It cannot by itself prove end-to-end migration or platform readiness. Final decisions still require relevant VMware HCX validation, target design review, hardware compatibility or BOM checks, performance history, licensing confirmation, and vendor documentation.
+An RVTools export is a snapshot, not a readiness certificate. It cannot prove that a migration will work from end to end. Final decisions still need the relevant VMware HCX validation, a target design review, hardware compatibility or BOM checks, performance history, licensing confirmation, and current vendor documentation.
 
-Project thresholds are labeled as heuristics. Time-sensitive product support, compatibility, licensing, and lifecycle claims must be verified against current primary sources.
+The reports label project thresholds as heuristics rather than vendor limits. Product support, compatibility, licensing, and lifecycle details change over time, so the agent must check current primary sources before relying on them.
 
 ## Development
 
@@ -107,11 +109,11 @@ Validate Claude packaging:
 claude plugin validate --strict .
 ```
 
-The repository also contains Codex plugin and skill manifests under `.codex-plugin/`, `.agents/plugins/`, and `skills/`.
+Codex plugin and skill manifests live under `.codex-plugin/`, `.agents/plugins/`, and `skills/`.
 
 ## Versioning
 
-RVTools Analyzer follows semantic versioning. Before 1.0, interfaces and finding thresholds may change based on user feedback. Plugin manifest versions are kept aligned across Claude and Codex.
+RVTools Analyzer follows semantic versioning. Until 1.0, interfaces and finding thresholds may change as people use the skill and report what works. Claude and Codex plugin manifests always carry the same version.
 
 ## License
 
