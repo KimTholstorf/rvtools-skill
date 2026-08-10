@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from openpyxl import Workbook, load_workbook
 
@@ -138,6 +139,7 @@ class QueryRVToolsTests(unittest.TestCase):
             [["windows-off", False, "poweredOff", False, "USB device"]],
         )
         workbook.save(self.path)
+        workbook.close()
 
     def tearDown(self):
         self.tempdir.cleanup()
@@ -156,6 +158,19 @@ class QueryRVToolsTests(unittest.TestCase):
 
         self.assertEqual(result["rows"], [{"cluster": "cluster-a", "count": 1, "sum_cpus": 4}])
         self.assertTrue(result["scope"]["templates_excluded"])
+
+    def test_query_indexing_closes_source_workbook(self):
+        workbook = load_workbook(self.path, read_only=True, data_only=True)
+        close_spy = Mock(wraps=workbook.close)
+        workbook.close = close_spy
+
+        try:
+            with patch.object(QUERY, "load_workbook", return_value=workbook):
+                QUERY.run_query(self.path, {"entity": "vm", "metrics": ["count"]})
+            close_spy.assert_called_once_with()
+        finally:
+            if not close_spy.called:
+                workbook.close()
 
     def test_queries_cluster_overcommit_fields(self):
         self.assertTrue(hasattr(QUERY, "run_query"))
@@ -288,6 +303,7 @@ class QueryRVToolsTests(unittest.TestCase):
             ["new-vm", "poweredOn", False, 1, 1024, 1024, 512, "cluster-b", "esx-03", "vmx-19", False, "Ubuntu Linux", ""]
         )
         workbook.save(self.path)
+        workbook.close()
         rebuilt = QUERY.run_query(self.path, plan, index_path=index_path)
 
         self.assertFalse(rebuilt["index_reused"])
@@ -304,6 +320,7 @@ class QueryRVToolsTests(unittest.TestCase):
         )
         add_sheet(workbook, "vHost", ["Host", "Cluster", "# Cores", "# Memory"], [])
         workbook.save(self.path)
+        workbook.close()
 
         vm_result = QUERY.run_query(self.path, {"entity": "vm", "metrics": ["count"]})
         cluster_result = QUERY.run_query(
@@ -336,6 +353,7 @@ class QueryRVToolsTests(unittest.TestCase):
             [["esx-01", "valid-cluster", 8, 32768]],
         )
         workbook.save(self.path)
+        workbook.close()
 
         valid = QUERY.run_query(
             self.path,

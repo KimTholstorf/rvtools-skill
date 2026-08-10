@@ -233,9 +233,12 @@ def _insert_rows(connection, entity, values):
 
 def _build_index(connection, workbook_path, digest):
     workbook = load_workbook(workbook_path, read_only=True, data_only=True)
-    if "vInfo" not in workbook.sheetnames:
-        raise ValueError("not an RVTools workbook: required vInfo sheet is missing")
-    rows = {sheet: RVTOOLS._read_rows(workbook, sheet) for sheet in INDEXED_SHEETS}
+    try:
+        if "vInfo" not in workbook.sheetnames:
+            raise ValueError("not an RVTools workbook: required vInfo sheet is missing")
+        rows = {sheet: RVTOOLS._read_rows(workbook, sheet) for sheet in INDEXED_SHEETS}
+    finally:
+        workbook.close()
 
     connection.execute("CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     connection.executemany(

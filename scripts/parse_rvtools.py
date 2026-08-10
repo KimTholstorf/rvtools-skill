@@ -959,10 +959,13 @@ def analyze_workbook(path, *, max_examples=25):
     """Return the normalized analysis payload for an RVTools workbook."""
     path = Path(path)
     workbook = load_workbook(path, read_only=True, data_only=True)
-    if "vInfo" not in workbook.sheetnames:
-        raise ValueError("Not an RVTools export: required sheet vInfo is missing")
-
-    rows = {name: _read_rows(workbook, name) for name in workbook.sheetnames}
+    try:
+        sheetnames = workbook.sheetnames
+        if "vInfo" not in sheetnames:
+            raise ValueError("Not an RVTools export: required sheet vInfo is missing")
+        rows = {name: _read_rows(workbook, name) for name in sheetnames}
+    finally:
+        workbook.close()
     vm_rows = rows["vInfo"]
     workloads = [row for row in vm_rows if not _truthy(_value(row, "Template"))]
     templates = [row for row in vm_rows if _truthy(_value(row, "Template"))]
@@ -989,7 +992,7 @@ def analyze_workbook(path, *, max_examples=25):
             "message": f"{sheet} is absent; related facts and detections are incomplete.",
         }
         for sheet in ANALYSIS_SHEETS
-        if sheet not in workbook.sheetnames
+        if sheet not in sheetnames
     ]
 
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -1000,7 +1003,7 @@ def analyze_workbook(path, *, max_examples=25):
             "sha256": digest,
             "rvtools_version": metadata["rvtools_version"],
             "exported_at": metadata["exported_at"],
-            "sheets_present": workbook.sheetnames,
+            "sheets_present": sheetnames,
         },
         "inventory": {
             "vms": len(workloads),
@@ -1081,7 +1084,8 @@ def main(argv=None):
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        os.fchmod(descriptor, 0o600)
+        if hasattr(os, "fchmod"):
+            os.fchmod(descriptor, 0o600)
         with os.fdopen(descriptor, "w", encoding="utf-8") as output_file:
             output_file.write(serialized + "\n")
     else:

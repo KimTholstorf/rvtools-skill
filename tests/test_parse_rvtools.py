@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from openpyxl import Workbook, load_workbook
 
@@ -167,6 +168,7 @@ class ParseInventoryTests(unittest.TestCase):
         add_sheet(workbook, "vHealth", ["Name", "Message", "Message type"], [["storage", "Path degraded", "Error"]])
         add_sheet(workbook, "vMetaData", ["RVTools version", "xlsx creation datetime"], [["4.7.1", datetime.now()]])
         workbook.save(self.path)
+        workbook.close()
 
     def tearDown(self):
         self.tempdir.cleanup()
@@ -188,6 +190,19 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(result["capacity_mib"]["vm_provisioned"], 512000)
         self.assertEqual(result["capacity_mib"]["datastore_free"], 50000)
         self.assertEqual(result["facts"]["esxi_versions"], {"7.0.3": 1, "8.0.3": 1})
+
+    def test_analysis_closes_source_workbook(self):
+        workbook = load_workbook(self.path, read_only=True, data_only=True)
+        close_spy = Mock(wraps=workbook.close)
+        workbook.close = close_spy
+
+        try:
+            with patch.object(PARSER, "load_workbook", return_value=workbook):
+                PARSER.analyze_workbook(self.path)
+            close_spy.assert_called_once_with()
+        finally:
+            if not close_spy.called:
+                workbook.close()
 
     def test_extracts_host_hardware_lifecycle_and_hyperthreading_facts(self):
         result = PARSER.analyze_workbook(self.path)
@@ -228,6 +243,7 @@ class ParseInventoryTests(unittest.TestCase):
         vinfo["O1"] = "OS according to the VMware Tools"
         vinfo["O2"] = "Microsoft Windows Server 2022 (64-bit)"
         workbook.save(self.path)
+        workbook.close()
 
         result = PARSER.analyze_workbook(self.path)
 
@@ -270,6 +286,7 @@ class ParseInventoryTests(unittest.TestCase):
             ["esx-03", "cluster-b", "Intel Xeon Gold", "8.0.3", 20, 30, 8, 32768]
         )
         workbook.save(self.path)
+        workbook.close()
 
         result = PARSER.analyze_workbook(self.path)
 
@@ -311,6 +328,7 @@ class ParseInventoryTests(unittest.TestCase):
         vhost["H2"] = None
         vhost["H3"] = None
         workbook.save(self.path)
+        workbook.close()
 
         result = PARSER.analyze_workbook(self.path)
 
@@ -331,6 +349,7 @@ class ParseInventoryTests(unittest.TestCase):
         vhost["I2"] = "vcenter-a.example"
         vhost["I3"] = "vcenter-b.example"
         workbook.save(self.path)
+        workbook.close()
 
         result = PARSER.analyze_workbook(self.path)
 
@@ -358,6 +377,7 @@ class ParseInventoryTests(unittest.TestCase):
             ]
         )
         workbook.save(self.path)
+        workbook.close()
 
         result = PARSER.analyze_workbook(self.path)
 
@@ -368,6 +388,7 @@ class ParseInventoryTests(unittest.TestCase):
         invalid_path = Path(self.tempdir.name) / "invalid.xlsx"
         workbook = Workbook()
         workbook.save(invalid_path)
+        workbook.close()
 
         with self.assertRaisesRegex(ValueError, "vInfo"):
             PARSER.analyze_workbook(invalid_path)
@@ -380,6 +401,7 @@ class ParseInventoryTests(unittest.TestCase):
         worksheet.append(["VM", "Powerstate", "Template"])
         worksheet.append(["vm-01", "poweredOn", False])
         workbook.save(minimal_path)
+        workbook.close()
 
         result = PARSER.analyze_workbook(minimal_path)
 
@@ -423,6 +445,7 @@ class ParseInventoryTests(unittest.TestCase):
         worksheet["F2"] = 10 * 1024 * 1024
         worksheet["F3"] = 10 * 1024 * 1024 + 1
         workbook.save(self.path)
+        workbook.close()
 
         result = PARSER.analyze_workbook(self.path)
         detections = {item["id"]: item for item in result["detections"]}
@@ -530,6 +553,24 @@ class ParseInventoryTests(unittest.TestCase):
         # Windows uses inherited ACLs; st_mode cannot express owner-only access.
         if os.name != "nt":
             self.assertEqual(output_path.stat().st_mode & 0o777, 0o600)
+
+    def test_cli_writes_output_when_fchmod_is_unavailable(self):
+        output_path = Path(self.tempdir.name) / "portable-analysis.json"
+        had_fchmod = hasattr(PARSER.os, "fchmod")
+        original_fchmod = getattr(PARSER.os, "fchmod", None)
+        if had_fchmod:
+            delattr(PARSER.os, "fchmod")
+
+        try:
+            self.assertEqual(
+                PARSER.main([str(self.path), "--output", str(output_path)]),
+                0,
+            )
+        finally:
+            if had_fchmod:
+                PARSER.os.fchmod = original_fchmod
+
+        self.assertTrue(output_path.is_file())
 
 
 if __name__ == "__main__":
