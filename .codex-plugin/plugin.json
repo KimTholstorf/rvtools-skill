@@ -1,7 +1,7 @@
 {
   "name": "rvtools-analyzer",
-  "version": "0.2.0",
-  "description": "Analyze and conversationally query VMware RVTools exports for migration readiness, health, hardware lifecycle, and capacity.",
+  "version": "0.3.0",
+  "description": "Analyze and conversationally query VMware RVTools exports for OCVS, AVS, GCVE, VCF, health, hardware lifecycle, and capacity.",
   "author": {
     "name": "Kim Tholstorf",
     "url": "https://github.com/KimTholstorf"
@@ -13,6 +13,8 @@
     "rvtools",
     "vmware",
     "ocvs",
+    "avs",
+    "gcve",
     "hcx",
     "health-check"
   ],
@@ -20,7 +22,7 @@
   "interface": {
     "displayName": "RVTools Analyzer",
     "shortDescription": "Query and assess VMware RVTools exports",
-    "longDescription": "Conversationally query RVTools inventory and produce evidence-based OCVS/HCX migration, VCF readiness, and vSphere health assessments.",
+    "longDescription": "Conversationally query RVTools inventory and produce evidence-based OCVS, AVS, and GCVE migration, VCF readiness, and vSphere health assessments.",
     "developerName": "Kim Tholstorf",
     "category": "Developer Tools",
     "capabilities": [
@@ -30,6 +32,7 @@
     ],
     "defaultPrompt": [
       "Analyze this RVTools export for OCVS migration risks.",
+      "Assess this RVTools export for AVS or GCVE migration with HCX.",
       "Run a health check on this RVTools workbook.",
       "Answer questions about this VMware inventory."
     ]

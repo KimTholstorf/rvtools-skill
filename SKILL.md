@@ -1,6 +1,6 @@
 ---
 name: rvtools-analyzer
-description: Analyze and conversationally query VMware RVTools multi-sheet .xlsx exports, and produce evidence-based assessments for Oracle Cloud VMware Solution (OCVS) migrations with VMware HCX, on-premises VMware Cloud Foundation (VCF) re-platforming, or general vSphere hygiene, hardware lifecycle, health, security, licensing, and capacity. Use when an agent receives an RVTools export or is asked factual inventory questions, VM/host/cluster counts, server vendor/model, CPU or Hyper-Threading questions, guest OS questions, filtered or grouped inventory queries, migration blockers, HCX readiness, VCF readiness, snapshot or disk risk, network configuration, overcommit, VM sprawl, end-of-sale/support status, or infrastructure health from RVTools data.
+description: Analyze and conversationally query VMware RVTools multi-sheet .xlsx exports, and produce evidence-based assessments for Oracle Cloud VMware Solution (OCVS), Azure VMware Solution (AVS), or Google Cloud VMware Engine (GCVE) migrations with VMware HCX, on-premises VMware Cloud Foundation (VCF) re-platforming, or general vSphere health, hardware lifecycle, security, licensing, and capacity. Use when an agent receives an RVTools export or is asked factual inventory questions, VM/host/cluster counts, server vendor/model, CPU or Hyper-Threading questions, guest OS questions, filtered or grouped inventory queries, migration blockers, HCX readiness, VCF readiness, snapshot or disk risk, network configuration, overcommit, VM sprawl, end-of-sale/support status, or infrastructure health from RVTools data.
 ---
 
 # RVTools Analyzer
@@ -23,11 +23,14 @@ For current VMware licence inventory or VCF/vSAN subscription-capacity questions
 
 Map the user's intent to exactly one lens unless they explicitly request a comparison or combined assessment:
 
-- OCVS, Oracle Cloud VMware Solution, HCX, cloud migration, RAV, vMotion, or Bulk Migration: use `hcx_ocvs` and read [references/hcx_ocvs.md](references/hcx_ocvs.md).
+- OCVS or Oracle Cloud VMware Solution: use `hcx_ocvs`; read [references/hcx_common.md](references/hcx_common.md), then [references/hcx_ocvs.md](references/hcx_ocvs.md).
+- AVS or Azure VMware Solution: use `hcx_avs`; read [references/hcx_common.md](references/hcx_common.md), then [references/hcx_avs.md](references/hcx_avs.md).
+- GCVE or Google Cloud VMware Engine: use `hcx_gcve`; read [references/hcx_common.md](references/hcx_common.md), then [references/hcx_gcve.md](references/hcx_gcve.md).
+- HCX, RAV, vMotion, Bulk Migration, or cloud migration without a named target: ask which of OCVS, AVS, or GCVE is intended.
 - VMware Cloud Foundation, VCF, workload domain, management domain, convergence, import, or on-premises re-platforming: use `vcf_onprem` and read [references/vcf_onprem.md](references/vcf_onprem.md).
 - Health check, hygiene, capacity, sprawl, snapshot debt, hardware lifecycle, security posture, licensing exposure, or general environment review: use `hygiene` and read [references/hygiene.md](references/hygiene.md). For every hygiene assessment with `vHost` data, also read and follow [references/hardware_lifecycle.md](references/hardware_lifecycle.md).
 
-Ask which lens to use when the intent is ambiguous. Do not run all three by default. For an explicitly combined request, keep each lens's conclusions separate and deduplicate shared findings.
+Ask which lens to use when the intent is ambiguous. Do not run every lens or cloud target by default. For an explicitly combined request, keep each lens's conclusions separate and deduplicate shared findings.
 
 Treat a future lens as another file under `references/`. Let that reference declare which parser detection IDs or categories it interprets; do not duplicate parsing logic or require a separate workbook pass.
 
@@ -50,6 +53,16 @@ Locate this skill directory, then run:
 python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --pretty --max-examples 25 --output /safe/local/path/rvtools-analysis.json
 ```
 
+For a cloud migration assessment, add exactly one target:
+
+```bash
+python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target ocvs --pretty --output /safe/local/path/ocvs-analysis.json
+python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target avs --pretty --output /safe/local/path/avs-analysis.json
+python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target gcve --pretty --output /safe/local/path/gcve-analysis.json
+```
+
+Use `--target-node` and `--target-region` only when the user has selected them. For OCVS, use `--target-cpu-vendor Intel|AMD` when known; otherwise retain the target CPU vendor manual gate.
+
 The script requires Python 3 and `openpyxl`. If `openpyxl` is unavailable, use an environment-provided Python runtime that already includes it or report the dependency clearly. Do not upload the workbook or substitute model-based spreadsheet reading for the deterministic pass.
 
 The parser emits:
@@ -59,7 +72,8 @@ The parser emits:
 - `capacity_mib`: VM and datastore storage totals;
 - `overcommit`: per-cluster and overall CPU and memory allocation ratios for powered-on workloads, plus powered-off inventory and coverage warnings;
 - `facts`: power state, ESXi version, host vendor/model, CPU vendor/model, Hyper-Threading, and VM hardware distributions;
-- `detections`: rule ID, severity, category, supported built-in lenses, count, and bounded safe examples;
+- `detections`: provider-neutral source-health rule ID, severity, category, tags, count, and bounded safe examples;
+- `migration`: when `--target` is supplied, the target profile, exact per-VM/per-method screening, findings, manual gates, and dated vendor source catalog;
 - `warnings`: missing sheets and resulting coverage gaps.
 
 Stop and report an invalid-input error if `vInfo` is absent. Continue with explicit coverage limitations when optional sheets are missing.
@@ -78,10 +92,12 @@ Translate the user's wording into the CLI's structured fields and filters accord
 
 For an estate-wide VCF licensing estimate, query `vcf_license_summary`. If the user supplies verified raw vSAN capacity, pass it with `--vsan-raw-tib`; otherwise preserve the result's vSAN evidence label and caveat. Use `vcf_license` for per-host or per-cluster workings and `license` for sanitized current assignments.
 
+For migration questions, query `migration_method` for exact VM/method outcomes, `migration_finding` for affected workloads and reasons, and `target_node` for the dated AVS or GCVE node catalog. Filter by `target=ocvs|avs|gcve`. Always retain the screening-not-validation warning.
+
 ## Interpret the selected lens
 
-1. Filter detections to the selected built-in lens using each detection's `lenses` list. For an added lens reference, use the detection IDs or categories named by that reference.
-2. Apply the selected reference's interpretation. Do not convert a heuristic into a vendor limit.
+1. For a migration lens, use the selected target's `migration` result as the method decision record. Use provider-neutral `detections` only as supporting health, capacity, security, or remediation evidence.
+2. Apply the shared HCX reference and the selected provider reference. For VCF or health checks, use the relevant detection categories and the lens reference. Do not convert a heuristic into a vendor limit.
 3. Distinguish:
    - documented blocker or requirement;
    - warning that needs remediation or validation;
@@ -89,7 +105,7 @@ For an estate-wide VCF licensing estimate, query `vcf_license_summary`. If the u
    - coverage gap outside RVTools.
 4. Keep source facts separate from inference. State assumptions about target release, target shape, migration profile, storage architecture, or VCF workflow.
 5. Do not claim that RVTools alone proves migration or VCF readiness. Require HCX Validate, HCL/BOM checks, target design validation, and performance history where applicable.
-6. Re-verify time-sensitive product versions, shapes, compatibility, licensing, and limits against current Oracle or Broadcom primary documentation when those details affect the conclusion.
+6. Re-verify time-sensitive product versions, node or host types, compatibility, licensing, regional availability, and limits against current Oracle, Microsoft, Google, or Broadcom primary documentation when those details affect the conclusion.
 7. For the hygiene lens, research every distinct nonblank host vendor/model against current primary vendor lifecycle sources. Record the exact matched scope and as-of date; never equate End-of-Sale with end of support. Report missing vendor/model data or an unverified model match as a coverage gap.
 
 ## Produce the report
@@ -122,6 +138,7 @@ Before finishing:
 - Confirm factual answers match query JSON and state whether templates, power states, filters, grouping, or row limits affected the result.
 - Confirm hygiene reports state the overcommit formulas, powered-on scope, and powered-off exclusions exactly as emitted by the parser.
 - Confirm every finding belongs to the selected lens or is clearly labeled shared context.
+- Confirm migration reports use the selected target only, show per-method statuses, preserve manual gates, and state the target catalog review date.
 - Confirm no matched secret value is present in the report.
 - Confirm warning and coverage-gap sections reflect missing sheets.
 - Confirm thresholds are labeled vendor-backed or project heuristic according to the lens reference.

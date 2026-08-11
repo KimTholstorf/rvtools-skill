@@ -300,6 +300,63 @@ class QueryRVToolsTests(unittest.TestCase):
         self.assertEqual(cdrom["rows"], [{"count": 1}])
         self.assertEqual(usb["rows"], [{"count": 1}])
 
+    def test_queries_exact_migration_method_outcomes_by_target(self):
+        result = QUERY.run_query(
+            self.path,
+            {
+                "entity": "migration_method",
+                "select": ["target", "vm", "method", "status", "reason_ids"],
+                "filters": ["target=avs", "vm=linux-on", "method=hcx_vmotion"],
+            },
+        )
+
+        self.assertEqual(
+            result["rows"],
+            [
+                {
+                    "target": "avs",
+                    "vm": "linux-on",
+                    "method": "hcx_vmotion",
+                    "status": "blocked",
+                    "reason_ids": "connected_cdrom",
+                }
+            ],
+        )
+        self.assertEqual(result["warnings"][0]["code"], "migration_screening_not_validation")
+        self.assertTrue(result["scope"]["templates_excluded"])
+
+    def test_queries_provider_node_catalog_and_migration_findings(self):
+        nodes = QUERY.run_query(
+            self.path,
+            {
+                "entity": "target_node",
+                "select": ["target", "node_type", "physical_cores", "logical_threads"],
+                "filters": ["target=gcve", "node_type=ve2-standard-128"],
+            },
+        )
+        findings = QUERY.run_query(
+            self.path,
+            {
+                "entity": "migration_finding",
+                "select": ["target", "finding_id", "vm", "status", "methods"],
+                "filters": ["target=avs", "finding_id=cross_vendor_cpu"],
+            },
+        )
+
+        self.assertEqual(
+            nodes["rows"],
+            [
+                {
+                    "target": "gcve",
+                    "node_type": "ve2-standard-128",
+                    "physical_cores": 64.0,
+                    "logical_threads": 128.0,
+                }
+            ],
+        )
+        self.assertEqual(findings["rows"][0]["vm"], "windows-off")
+        self.assertEqual(findings["rows"][0]["status"], "blocked")
+
     def test_queries_sanitized_current_vmware_license_inventory(self):
         self.assertIn("license", QUERY.ENTITY_SCHEMAS)
         self.assertNotIn("key", QUERY.ENTITY_SCHEMAS["license"])

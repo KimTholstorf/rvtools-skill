@@ -1,6 +1,6 @@
 # HCX Migration Readiness for Oracle Cloud VMware Solution
 
-Use this reference only for the `hcx_ocvs` lens. Treat the parser output as a screening assessment, not as a substitute for HCX Validate, the Broadcom interoperability matrix, or an application migration test.
+Use this reference with [hcx_common.md](hcx_common.md) for the `hcx_ocvs` lens and parser target `ocvs`. Treat the parser output as a screening assessment, not as a substitute for HCX Validate, the Broadcom interoperability matrix, or an application migration test.
 
 Last source review: 2026-08-07.
 

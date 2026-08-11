@@ -15,8 +15,14 @@ from pathlib import Path
 
 from openpyxl import load_workbook
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-SCHEMA_VERSION = "1.0"
+from rvtools.migration import TARGET_IDS, assess_migration
+
+
+SCHEMA_VERSION = "2.0"
 ANALYSIS_SHEETS = (
     "vHost",
     "vCluster",
@@ -361,7 +367,7 @@ def _hardware_version(value):
     return int(match.group(1)) if match else None
 
 
-def _add_detection(detections, *, detection_id, category, severity, title, lenses, matches, max_examples):
+def _add_detection(detections, *, detection_id, category, severity, title, matches, max_examples):
     if not matches:
         return
     detections.append(
@@ -370,7 +376,7 @@ def _add_detection(detections, *, detection_id, category, severity, title, lense
             "category": category,
             "severity": severity,
             "title": title,
-            "lenses": list(lenses),
+            "tags": [f"source.{category}"],
             "count": len(matches),
             "examples": matches[:max_examples],
             "examples_truncated": len(matches) > max_examples,
@@ -381,8 +387,6 @@ def _add_detection(detections, *, detection_id, category, severity, title, lense
 def _vm_detections(rows, max_examples):
     detections = []
     workloads = [row for row in rows["vInfo"] if not _truthy(_value(row, "Template"))]
-    all_lenses = ("hcx_ocvs", "vcf_onprem", "hygiene")
-
     def vm_matches(predicate, detail=None):
         matches = []
         for row in workloads:
@@ -399,7 +403,6 @@ def _vm_detections(rows, max_examples):
         category="power_state",
         severity="high",
         title="Suspended virtual machines",
-        lenses=all_lenses,
         matches=vm_matches(lambda row: "suspend" in str(_value(row, "Powerstate", default="")).casefold()),
         max_examples=max_examples,
     )
@@ -409,7 +412,6 @@ def _vm_detections(rows, max_examples):
         category="storage",
         severity="medium",
         title="Virtual machines require disk consolidation",
-        lenses=all_lenses,
         matches=vm_matches(lambda row: _truthy(_value(row, "Consolidation Needed"))),
         max_examples=max_examples,
     )
@@ -419,7 +421,6 @@ def _vm_detections(rows, max_examples):
         category="sizing",
         severity="high",
         title="Virtual machines exceed the default 128-vCPU review threshold",
-        lenses=all_lenses,
         matches=vm_matches(
             lambda row: _number(_value(row, "CPUs")) > 128,
             lambda row: {"vcpus": _whole_or_float(_value(row, "CPUs"))},
@@ -432,7 +433,6 @@ def _vm_detections(rows, max_examples):
         category="sizing",
         severity="high",
         title="Virtual machines exceed the default 1-TiB memory review threshold",
-        lenses=all_lenses,
         matches=vm_matches(
             lambda row: _number(_value(row, "Memory", "Size MiB")) > 1048576,
             lambda row: {"memory_mib": _whole_or_float(_value(row, "Memory", "Size MiB"))},
@@ -445,7 +445,6 @@ def _vm_detections(rows, max_examples):
         category="sizing",
         severity="medium",
         title="Virtual machines exceed the 10-TiB provisioned-storage review threshold",
-        lenses=("hcx_ocvs", "vcf_onprem"),
         matches=vm_matches(
             lambda row: _number(_value(row, "Provisioned MiB")) > 10 * 1024 * 1024,
             lambda row: {
@@ -461,7 +460,6 @@ def _vm_detections(rows, max_examples):
         category="compatibility",
         severity="medium",
         title="Virtual machines use hardware version older than vmx-14",
-        lenses=all_lenses,
         matches=vm_matches(
             lambda row: (_hardware_version(_value(row, "HW version")) or 999) < 14,
             lambda row: {"hardware_version": str(_value(row, "HW version"))},
@@ -474,7 +472,6 @@ def _vm_detections(rows, max_examples):
         category="migration_compatibility",
         severity="high",
         title="Fault Tolerance is configured",
-        lenses=("hcx_ocvs", "vcf_onprem"),
         matches=vm_matches(
             lambda row: str(_value(row, "FT State", default="")).strip().casefold()
             not in {"", "notconfigured", "not configured", "disabled", "off"}
@@ -488,7 +485,6 @@ def _vm_detections(rows, max_examples):
         category="licensing",
         severity="medium",
         title="Potential Oracle workloads require licensing review",
-        lenses=all_lenses,
         matches=vm_matches(
             lambda row: any(
                 oracle_pattern.search(str(_value(row, header, default="")))
@@ -517,7 +513,6 @@ def _vm_detections(rows, max_examples):
         category="security",
         severity="high",
         title="Possible clear-text credentials or tokens",
-        lenses=all_lenses,
         matches=secret_matches,
         max_examples=max_examples,
     )
@@ -527,7 +522,6 @@ def _vm_detections(rows, max_examples):
         category="guest_operations",
         severity="medium",
         title="VMware Tools is not running or not installed",
-        lenses=all_lenses,
         matches=[
             {"vm": _vm_name(row), "status": str(_value(row, "Tools"))}
             for row in _workload_rows(rows.get("vTools", []))
@@ -542,7 +536,6 @@ def _vm_detections(rows, max_examples):
         category="device",
         severity="high",
         title="Connected USB devices",
-        lenses=("hcx_ocvs", "vcf_onprem"),
         matches=[
             {"vm": _vm_name(row)}
             for row in _workload_rows(rows.get("vUSB", []))
@@ -556,7 +549,6 @@ def _vm_detections(rows, max_examples):
         category="device",
         severity="medium",
         title="Connected CD/DVD devices",
-        lenses=all_lenses,
         matches=[
             {"vm": _vm_name(row)}
             for row in _workload_rows(rows.get("vCD", []))
@@ -570,7 +562,6 @@ def _vm_detections(rows, max_examples):
         category="device",
         severity="low",
         title="Disconnected CD/DVD devices are configured to connect at power-on",
-        lenses=all_lenses,
         matches=[
             {"vm": _vm_name(row)}
             for row in _workload_rows(rows.get("vCD", []))
@@ -584,7 +575,6 @@ def _vm_detections(rows, max_examples):
 
 def _storage_detections(rows, max_examples, reference_time):
     detections = []
-    all_lenses = ("hcx_ocvs", "vcf_onprem", "hygiene")
     disk_rows = _workload_rows(rows.get("vDisk", []))
 
     stale_snapshots = []
@@ -608,7 +598,6 @@ def _storage_detections(rows, max_examples, reference_time):
         category="snapshot",
         severity="high",
         title="Snapshots are at least 72 hours old",
-        lenses=all_lenses,
         matches=stale_snapshots,
         max_examples=max_examples,
     )
@@ -630,7 +619,6 @@ def _storage_detections(rows, max_examples, reference_time):
         category="storage_compatibility",
         severity="high",
         title="Raw Device Mapping disks",
-        lenses=("hcx_ocvs", "vcf_onprem"),
         matches=raw_disks,
         max_examples=max_examples,
     )
@@ -640,7 +628,6 @@ def _storage_detections(rows, max_examples, reference_time):
         category="storage_compatibility",
         severity="high",
         title="Independent-mode virtual disks",
-        lenses=("hcx_ocvs", "vcf_onprem"),
         matches=[
             {
                 "vm": _vm_name(row),
@@ -659,7 +646,6 @@ def _storage_detections(rows, max_examples, reference_time):
         category="storage_compatibility",
         severity="high",
         title="Shared or multi-writer virtual disks",
-        lenses=("hcx_ocvs", "vcf_onprem"),
         matches=[
             {
                 "vm": _vm_name(row),
@@ -697,7 +683,6 @@ def _storage_detections(rows, max_examples, reference_time):
         category="capacity",
         severity="high",
         title="Datastores have less than 10% free space",
-        lenses=("vcf_onprem", "hygiene"),
         matches=low_free,
         max_examples=max_examples,
     )
@@ -707,7 +692,6 @@ def _storage_detections(rows, max_examples, reference_time):
         category="capacity",
         severity="medium",
         title="Datastore provisioned capacity exceeds physical capacity",
-        lenses=("vcf_onprem", "hygiene"),
         matches=overprovisioned,
         max_examples=max_examples,
     )
@@ -760,7 +744,6 @@ def _network_detections(rows, max_examples):
         category="network_compatibility",
         severity="medium",
         title="VM network adapters use standard vSwitches",
-        lenses=("hcx_ocvs", "vcf_onprem"),
         matches=standard_switch,
         max_examples=max_examples,
     )
@@ -770,7 +753,6 @@ def _network_detections(rows, max_examples):
         category="network_isolation",
         severity="high",
         title="VM network adapters use VMkernel port groups",
-        lenses=("hcx_ocvs", "vcf_onprem", "hygiene"),
         matches=vmkernel_attachment,
         max_examples=max_examples,
     )
@@ -793,7 +775,6 @@ def _network_detections(rows, max_examples):
         category="network_security",
         severity="medium",
         title="Distributed port groups use VLAN 0 or have no VLAN ID",
-        lenses=("hcx_ocvs", "vcf_onprem", "hygiene"),
         matches=[port_example(row) for row in dvports if vlan_zero_or_empty(row)],
         max_examples=max_examples,
     )
@@ -803,7 +784,6 @@ def _network_detections(rows, max_examples):
         category="network_security",
         severity="high",
         title="Distributed port groups allow promiscuous mode",
-        lenses=("hcx_ocvs", "vcf_onprem", "hygiene"),
         matches=[port_example(row) for row in dvports if _truthy(_value(row, "Allow Promiscuous"))],
         max_examples=max_examples,
     )
@@ -813,7 +793,6 @@ def _network_detections(rows, max_examples):
         category="network_security",
         severity="medium",
         title="Distributed port groups allow MAC address changes",
-        lenses=("hcx_ocvs", "vcf_onprem", "hygiene"),
         matches=[port_example(row) for row in dvports if _truthy(_value(row, "Mac Changes"))],
         max_examples=max_examples,
     )
@@ -823,7 +802,6 @@ def _network_detections(rows, max_examples):
         category="network_security",
         severity="medium",
         title="Distributed port groups allow forged transmits",
-        lenses=("hcx_ocvs", "vcf_onprem", "hygiene"),
         matches=[port_example(row) for row in dvports if _truthy(_value(row, "Forged Transmits"))],
         max_examples=max_examples,
     )
@@ -833,7 +811,6 @@ def _network_detections(rows, max_examples):
         category="network_compatibility",
         severity="medium",
         title="Distributed port groups use ephemeral binding",
-        lenses=("hcx_ocvs", "vcf_onprem", "hygiene"),
         matches=[
             port_example(row)
             for row in dvports
@@ -847,14 +824,12 @@ def _network_detections(rows, max_examples):
 def _environment_detections(rows, max_examples):
     detections = []
     hosts = rows.get("vHost", [])
-    all_lenses = ("hcx_ocvs", "vcf_onprem", "hygiene")
     _add_detection(
         detections,
         detection_id="non_intel_host",
         category="cpu_compatibility",
         severity="medium",
         title="Hosts use non-Intel processors",
-        lenses=("hcx_ocvs", "vcf_onprem"),
         matches=[
             {
                 "host": str(_value(row, "Host", default="(unnamed host)")),
@@ -873,7 +848,6 @@ def _environment_detections(rows, max_examples):
         category="lifecycle",
         severity="medium",
         title="Multiple ESXi versions are present",
-        lenses=all_lenses,
         matches=[{"version": version, "hosts": count} for version, count in version_counts.items()]
         if len(version_counts) > 1
         else [],
@@ -885,7 +859,6 @@ def _environment_detections(rows, max_examples):
         category="capacity",
         severity="medium",
         title="Hosts exceed 80% CPU utilization",
-        lenses=("vcf_onprem", "hygiene"),
         matches=[
             {
                 "host": str(_value(row, "Host", default="(unnamed host)")),
@@ -902,7 +875,6 @@ def _environment_detections(rows, max_examples):
         category="capacity",
         severity="high",
         title="Hosts exceed 90% memory utilization",
-        lenses=("vcf_onprem", "hygiene"),
         matches=[
             {
                 "host": str(_value(row, "Host", default="(unnamed host)")),
@@ -919,7 +891,6 @@ def _environment_detections(rows, max_examples):
         category="hardware_configuration",
         severity="medium",
         title="Hosts support Hyper-Threading but do not have it active",
-        lenses=("vcf_onprem", "hygiene"),
         matches=[
             {
                 "host": str(_value(row, "Host", default="(unnamed host)")),
@@ -941,7 +912,6 @@ def _environment_detections(rows, max_examples):
         category="health",
         severity="high",
         title="RVTools health checks report errors",
-        lenses=all_lenses,
         matches=[
             {
                 "check": str(_value(row, "Name", default="(unnamed health check)")),
@@ -955,7 +925,15 @@ def _environment_detections(rows, max_examples):
     return detections
 
 
-def analyze_workbook(path, *, max_examples=25):
+def analyze_workbook(
+    path,
+    *,
+    max_examples=25,
+    target=None,
+    target_node=None,
+    target_region=None,
+    target_cpu_vendor=None,
+):
     """Return the normalized analysis payload for an RVTools workbook."""
     path = Path(path)
     workbook = load_workbook(path, read_only=True, data_only=True)
@@ -996,7 +974,7 @@ def analyze_workbook(path, *, max_examples=25):
     ]
 
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    return {
+    result = {
         "schema_version": SCHEMA_VERSION,
         "source": {
             "file": path.name,
@@ -1050,6 +1028,15 @@ def analyze_workbook(path, *, max_examples=25):
         + _environment_detections(rows, max_examples),
         "warnings": warnings,
     }
+    if target:
+        result["migration"] = assess_migration(
+            rows,
+            target,
+            target_node=target_node,
+            target_region=target_region,
+            target_cpu_vendor=target_cpu_vendor,
+        )
+    return result
 
 
 def _positive_integer(value):
@@ -1072,11 +1059,30 @@ def main(argv=None):
         default=25,
         help="Maximum affected-object examples retained per detection (default: 25)",
     )
+    parser.add_argument(
+        "--target",
+        choices=TARGET_IDS,
+        help="Add an HCX migration assessment for this cloud VMware target",
+    )
+    parser.add_argument("--target-node", help="Select a provider node or host type")
+    parser.add_argument("--target-region", help="Record the intended cloud region")
+    parser.add_argument(
+        "--target-cpu-vendor",
+        choices=("Intel", "AMD"),
+        help="Select the OCVS target CPU vendor for live-migration screening",
+    )
     args = parser.parse_args(argv)
     if args.output and args.output.resolve() == args.workbook.resolve():
         parser.exit(2, "error: output path must not overwrite the source workbook\n")
     try:
-        payload = analyze_workbook(args.workbook, max_examples=args.max_examples)
+        payload = analyze_workbook(
+            args.workbook,
+            max_examples=args.max_examples,
+            target=args.target,
+            target_node=args.target_node,
+            target_region=args.target_region,
+            target_cpu_vendor=args.target_cpu_vendor,
+        )
     except (FileNotFoundError, OSError, ValueError) as exc:
         parser.exit(2, f"error: {exc}\n")
 

@@ -4,7 +4,9 @@
 
 - Answer questions about VMs, operating systems, power states, hosts, clusters, and hardware.
 - Calculate CPU and memory overcommit ratios.
-- Assess OCVS and VMware HCX migration risks.
+- Assess each workload for an HCX migration to Oracle Cloud VMware Solution (OCVS), Azure VMware Solution (AVS), or Google Cloud VMware Engine (GCVE).
+- Compare HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, and Cold Migration per VM.
+- Explore the dated AVS host and GCVE node catalogs through normal questions.
 - Review VMware Cloud Foundation readiness.
 - Estimate required VCF cores and included, additional, or surplus vSAN capacity.
 - Run vSphere health checks, including hardware lifecycle and support status.
@@ -16,6 +18,12 @@
 - [Download the synthetic OCVS migration sample (PDF)](pdf/ocvs-migration-analysis-sample.pdf)
 
 Both reports use fully synthetic data and contain no customer-derived inventory.
+
+## Cloud VMware migration assessments
+
+For OCVS, AVS, and GCVE assessments, the skill checks every non-template VM against each HCX migration method. A workload is reported as `eligible`, `conditional`, `blocked`, or `unknown`, with the reasons kept alongside the result. Missing compatibility data is reported as unknown instead of quietly passing the VM.
+
+The assessment also covers provider-specific planning details such as target CPU compatibility, AVS host types, GCVE node families, storage architecture, regional availability, networking, and licensing checks. These catalogs are dated snapshots of vendor documentation. The skill checks current primary sources before using them in a customer design.
 
 ## Requirements
 
@@ -98,6 +106,10 @@ Attach an RVTools `.xlsx` export, or provide its local path, and ask something l
 - “How many VCF cores does this estate need, and will it need extra vSAN capacity?”
 - “Run a vSphere health check and create an HTML report.”
 - “Assess this environment for an OCVS migration using HCX.”
+- “Which VMs would block RAV when moving to Azure VMware Solution (AVS)?”
+- “How many VMs are eligible for Bulk Migration to AVS, grouped by cluster?”
+- “Assess this estate for Google Cloud VMware Engine (GCVE), and compare the suitable node types.”
+- “Show the CPU, memory, and raw storage for GCVE ve2-standard-128.”
 
 Short factual questions get a direct answer in chat. A full assessment creates an HTML report in an interactive session or a Markdown report in a file-oriented session, unless you ask for a different supported format.
 
@@ -115,7 +127,7 @@ The parser and query scripts do not contain code that uploads the workbook. If y
 
 ## Scope and limitations
 
-An RVTools export is a snapshot, not a readiness certificate. It cannot prove that a migration will work from end to end. Final decisions still need the relevant VMware HCX validation, a target design review, hardware compatibility or BOM checks, performance history, licensing confirmation, and current vendor documentation.
+An RVTools export is a snapshot, not a readiness certificate. An `eligible` result means that the available workbook data did not reveal a blocker for that method. It does not prove that a migration will work from end to end. Final decisions still need the relevant VMware HCX validation, a target design review, hardware compatibility or BOM checks, performance history, licensing confirmation, and current vendor documentation.
 
 The reports label project thresholds as heuristics rather than vendor limits. Product support, compatibility, licensing, and lifecycle details change over time, so the agent must check current primary sources before relying on them.
 

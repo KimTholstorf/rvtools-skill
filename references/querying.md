@@ -1,6 +1,6 @@
 # Conversational RVTools Queries
 
-Use this reference for factual inventory questions and follow-ups. Query mode is not a lens: retrieve facts first, then apply `hcx_ocvs`, `vcf_onprem`, or `hygiene` only when the user asks for interpretation.
+Use this reference for factual inventory questions and follow-ups. Query mode is not a lens: retrieve facts first, then apply `hcx_ocvs`, `hcx_avs`, `hcx_gcve`, `vcf_onprem`, or `hygiene` only when the user asks for interpretation.
 
 ## Session workflow
 
@@ -44,10 +44,13 @@ Filters use `field=value` or `field__operator=value`. Supported operators are `e
 - `dvport`: `port_group`, `switch`, `vlan`, `allow_promiscuous`, `mac_changes`, `forged_transmits`, `binding_type`
 - `cdrom`: `vm`, `template`, `power_state`, `cluster`, `host`, `connected`, `starts_connected`, `device_type`
 - `usb`: `vm`, `template`, `power_state`, `cluster`, `host`, `connected`, `device_type`
+- `migration_method`: `target`, `vm`, `cluster`, `host`, `vcenter`, `method`, `status`, `reason_ids`
+- `migration_finding`: `target`, `finding_id`, `category`, `vm`, `cluster`, `host`, `vcenter`, `status`, `methods`, `summary`
+- `target_node`: `target`, `node_type`, `physical_cores`, `logical_threads`, `cpu_vendor`, `cpu_model`, `memory_gib`, `raw_storage_tb`, `raw_storage_tb_osa`, `raw_storage_tb_esa`, `vsan_architecture`, `storage_only`, `availability`, `catalog_reviewed`
 
 ## Defaults and answer discipline
 
-- Exclude templates for `vm`, `disk`, `network`, and `snapshot` unless explicitly requested.
+- Exclude templates for VM-linked inventory entities unless explicitly requested. Migration entities are workload-only and never include templates.
 - Include all workload power states unless filtered. State this when answering VM counts.
 - Prefer the VMware Tools-reported guest OS and fall back to configured OS. Report `unknown` counts when relevant.
 - Limit listings to 25 rows by default and never exceed 100. Aggregate counts are not truncated.
@@ -57,6 +60,8 @@ Filters use `field=value` or `field__operator=value`. Supported operators are `e
 - Use `vcf_license_summary` for the current estate. Use `vcf_license` with cluster filters or grouping to show the per-host workings or model alternative target scopes.
 - Treat `rvtools_vsan_datastore_capacity_proxy` as an estimate because datastore capacity is not confirmed raw physical vSAN capacity. Use `--vsan-raw-tib` only with a verified raw capacity supplied by the user or another authoritative source.
 - Do not infer facts absent from returned rows. Run a follow-up query instead.
+- Migration entities contain deterministic RVTools screening for OCVS, AVS, and GCVE. `eligible` is not proof of HCX compatibility. Repeat the returned `migration_screening_not_validation` warning and use the selected provider lens for recommendations.
+- The `target_node` catalog is dated. Recheck current provider specifications, region availability, quotas, and commercial terms before using it for a customer design.
 
 ## Examples
 
@@ -112,6 +117,29 @@ Recalculate the vSAN balance from independently verified raw capacity:
 ```bash
 python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
   --entity vcf_license_summary --vsan-raw-tib 240
+```
+
+Count AVS outcomes by HCX method and status:
+
+```bash
+python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
+  --entity migration_method --metric count --filter target=avs \
+  --group-by method --group-by status
+```
+
+List VMs blocked for GCVE RAV with their reason IDs:
+
+```bash
+python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
+  --entity migration_method --filter target=gcve --filter method=rav \
+  --filter status=blocked --select vm --select cluster --select reason_ids
+```
+
+Look up a current-in-catalog AVS host type:
+
+```bash
+python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
+  --entity target_node --filter target=avs --filter node_type=AV64
 ```
 
 List large powered-on VMs with bounded output:

@@ -23,7 +23,7 @@ RVTOOLS = importlib.util.module_from_spec(PARSER_SPEC)
 assert PARSER_SPEC.loader is not None
 PARSER_SPEC.loader.exec_module(RVTOOLS)
 
-INDEX_SCHEMA_VERSION = "5"
+INDEX_SCHEMA_VERSION = "6"
 INDEXED_SHEETS = (
     "vInfo",
     "vHost",
@@ -191,6 +191,44 @@ ENTITY_SCHEMAS = {
         "connected": "INTEGER",
         "device_type": "TEXT",
     },
+    "migration_method": {
+        "target": "TEXT",
+        "vm": "TEXT",
+        "cluster": "TEXT",
+        "host": "TEXT",
+        "vcenter": "TEXT",
+        "method": "TEXT",
+        "status": "TEXT",
+        "reason_ids": "TEXT",
+    },
+    "migration_finding": {
+        "target": "TEXT",
+        "finding_id": "TEXT",
+        "category": "TEXT",
+        "vm": "TEXT",
+        "cluster": "TEXT",
+        "host": "TEXT",
+        "vcenter": "TEXT",
+        "status": "TEXT",
+        "methods": "TEXT",
+        "summary": "TEXT",
+    },
+    "target_node": {
+        "target": "TEXT",
+        "node_type": "TEXT",
+        "physical_cores": "REAL",
+        "logical_threads": "REAL",
+        "cpu_vendor": "TEXT",
+        "cpu_model": "TEXT",
+        "memory_gib": "REAL",
+        "raw_storage_tb": "REAL",
+        "raw_storage_tb_osa": "REAL",
+        "raw_storage_tb_esa": "REAL",
+        "vsan_architecture": "TEXT",
+        "storage_only": "INTEGER",
+        "availability": "TEXT",
+        "catalog_reviewed": "TEXT",
+    },
 }
 
 DEFAULT_SELECT = {
@@ -238,9 +276,36 @@ DEFAULT_SELECT = {
     "dvport": ("port_group", "switch", "vlan", "binding_type"),
     "cdrom": ("vm", "power_state", "cluster", "connected", "starts_connected", "device_type"),
     "usb": ("vm", "power_state", "cluster", "connected", "device_type"),
+    "migration_method": ("target", "vm", "cluster", "vcenter", "method", "status", "reason_ids"),
+    "migration_finding": (
+        "target",
+        "finding_id",
+        "category",
+        "vm",
+        "cluster",
+        "vcenter",
+        "status",
+        "methods",
+        "summary",
+    ),
+    "target_node": (
+        "target",
+        "node_type",
+        "physical_cores",
+        "logical_threads",
+        "cpu_vendor",
+        "cpu_model",
+        "memory_gib",
+        "raw_storage_tb",
+        "raw_storage_tb_osa",
+        "raw_storage_tb_esa",
+        "storage_only",
+        "availability",
+    ),
 }
 
 TEMPLATE_ENTITIES = {"vm", "disk", "network", "snapshot", "cdrom", "usb"}
+WORKLOAD_ONLY_ENTITIES = {"migration_method", "migration_finding"}
 FILTER_OPERATORS = {"eq", "ne", "contains", "startswith", "endswith", "gt", "gte", "lt", "lte", "in"}
 AGGREGATES = {"sum", "avg", "min", "max", "count_distinct"}
 
@@ -671,6 +736,55 @@ def _build_index(connection, workbook_path, digest):
             for row in rows["vUSB"]
         ),
     )
+    migration_methods = []
+    migration_findings = []
+    target_nodes = []
+    for target_id in RVTOOLS.TARGET_IDS:
+        assessment = RVTOOLS.assess_migration(rows, target_id)
+        for item in assessment["vm_methods"]:
+            for method, outcome in item["methods"].items():
+                migration_methods.append(
+                    {
+                        "target": target_id,
+                        "vm": item["vm"],
+                        "cluster": item["cluster"],
+                        "host": item["host"],
+                        "vcenter": item["vcenter"],
+                        "method": method,
+                        "status": outcome["status"],
+                        "reason_ids": ",".join(outcome["reason_ids"]),
+                    }
+                )
+        for finding in assessment["findings"]:
+            migration_findings.append(
+                {
+                    **finding,
+                    "methods": ",".join(finding["methods"]),
+                }
+            )
+        for node in assessment["target"]["nodes"]:
+            target_nodes.append(
+                {
+                    "target": target_id,
+                    "node_type": node["id"],
+                    "cpu_vendor": assessment["target"]["cpu_vendor"],
+                    **{key: value for key, value in node.items() if key != "id"},
+                }
+            )
+    _insert_rows(connection, "migration_method", migration_methods)
+    _insert_rows(connection, "migration_finding", migration_findings)
+    _insert_rows(connection, "target_node", target_nodes)
+    connection.executemany(
+        "INSERT INTO query_warning (code, scope, message) VALUES (?, ?, ?)",
+        (
+            (
+                "migration_screening_not_validation",
+                entity,
+                "RVTools provides a planning screen, not a successful HCX Validate result; complete the listed manual gates before execution.",
+            )
+            for entity in ("migration_method", "migration_finding", "target_node")
+        ),
+    )
     connection.commit()
 
 
@@ -822,8 +936,9 @@ def _compile_query(plan):
 
     where_parts = []
     parameters = []
-    templates_excluded = entity in TEMPLATE_ENTITIES and not bool(plan.get("include_templates"))
-    if templates_excluded:
+    template_filter_applied = entity in TEMPLATE_ENTITIES and not bool(plan.get("include_templates"))
+    templates_excluded = template_filter_applied or entity in WORKLOAD_ONLY_ENTITIES
+    if template_filter_applied:
         where_parts.append('"template" = 0')
     for expression in plan.get("filters") or []:
         sql, values = _filter_sql(entity, str(expression))
@@ -919,6 +1034,12 @@ def run_query(workbook, plan, *, index_path=None):
                 "WHERE code = 'missing_vlicense_sheet'"
             )
             warning_parameters = ()
+        elif entity in {"migration_method", "migration_finding", "target_node"}:
+            warning_query = (
+                "SELECT code, scope, message FROM query_warning "
+                "WHERE code = 'migration_screening_not_validation' AND scope = ?"
+            )
+            warning_parameters = (entity,)
         elif cluster_scoped:
             warning_query = (
                 "SELECT code, scope, message FROM query_warning "

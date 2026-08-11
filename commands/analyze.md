@@ -1,5 +1,5 @@
 ---
-description: Analyze or query a VMware RVTools XLSX export
+description: Query RVTools or assess OCVS, AVS, GCVE, VCF, and vSphere health
 argument-hint: [question, assessment, or workbook path]
 ---
 

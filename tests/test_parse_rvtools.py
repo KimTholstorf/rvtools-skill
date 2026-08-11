@@ -176,7 +176,7 @@ class ParseInventoryTests(unittest.TestCase):
     def test_extracts_normalized_inventory_and_capacity(self):
         result = PARSER.analyze_workbook(self.path)
 
-        self.assertEqual(result["schema_version"], "1.0")
+        self.assertEqual(result["schema_version"], "2.0")
         self.assertEqual(result["source"]["file"], self.path.name)
         self.assertEqual(result["source"]["rvtools_version"], "4.7.1")
         self.assertEqual(result["inventory"]["vms"], 2)
@@ -436,7 +436,8 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(detections["connected_cdrom"]["count"], 1)
         self.assertEqual(detections["connected_cdrom"]["severity"], "medium")
         self.assertEqual(detections["cdrom_starts_connected"]["count"], 1)
-        self.assertIn("hcx_ocvs", detections["vm_suspended"]["lenses"])
+        self.assertNotIn("lenses", detections["vm_suspended"])
+        self.assertIn("source.power_state", detections["vm_suspended"]["tags"])
         self.assertNotIn("password=", str(detections["possible_cleartext_secret"]["examples"]).casefold())
 
     def test_detects_vms_provisioned_above_ten_tib(self):
@@ -521,8 +522,28 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertTrue(completed.stdout.strip())
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["schema_version"], "1.0")
+        self.assertEqual(payload["schema_version"], "2.0")
         self.assertTrue(all(len(item["examples"]) <= 1 for item in payload["detections"]))
+
+    def test_adds_a_selected_target_migration_assessment(self):
+        result = PARSER.analyze_workbook(self.path, target="avs")
+
+        self.assertEqual(result["migration"]["target"]["id"], "avs")
+        self.assertEqual(result["migration"]["scope"]["workload_vms"], 2)
+        by_vm = {row["vm"]: row for row in result["migration"]["vm_methods"]}
+        self.assertEqual(by_vm["db-ora-01"]["methods"]["rav"]["status"], "blocked")
+
+    def test_cli_accepts_a_migration_target(self):
+        completed = subprocess.run(
+            [sys.executable, str(MODULE_PATH), str(self.path), "--target", "gcve"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["migration"]["target"]["id"], "gcve")
 
     def test_cli_refuses_to_overwrite_source_workbook(self):
         original = self.path.read_bytes()

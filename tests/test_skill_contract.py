@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.2.0")
+        self.assertEqual(manifest["version"], "0.3.0")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -145,7 +145,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("## [0.2.0] - 2026-08-11", changelog)
+        self.assertIn("## [0.3.0] - 2026-08-11", changelog)
         self.assertNotIn("beta", changelog.casefold())
 
     def test_claude_desktop_zip_is_released_only_after_successful_tagged_ci(self):
@@ -268,6 +268,25 @@ class SkillContractTests(unittest.TestCase):
             "bios_date",
         ):
             self.assertIn(f"`{field}`", querying)
+
+    def test_skill_routes_all_cloud_vmware_migration_targets_through_shared_hcx_rules(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        querying = (ROOT / "references" / "querying.md").read_text(encoding="utf-8")
+
+        for reference in ("hcx_common.md", "hcx_ocvs.md", "hcx_avs.md", "hcx_gcve.md"):
+            self.assertTrue((ROOT / "references" / reference).is_file())
+            self.assertIn(f"references/{reference}", skill)
+        for target in ("ocvs", "avs", "gcve"):
+            self.assertIn(f"--target {target}", skill)
+        for entity in ("migration_method", "migration_finding", "target_node"):
+            self.assertIn(f"`{entity}`", querying)
+        self.assertNotIn("each detection's `lenses`", skill)
+
+    def test_public_readme_mentions_avs_and_gcve_migration_analysis(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("Azure VMware Solution (AVS)", readme)
+        self.assertIn("Google Cloud VMware Engine (GCVE)", readme)
 
 
 if __name__ == "__main__":
