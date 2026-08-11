@@ -2,6 +2,19 @@
 
 All notable changes to RVTools Analyzer are documented here.
 
+## [0.2.0] - 2026-08-11
+
+### Added
+
+- Added sanitized conversational queries for current VMware licence inventory without exposing licence keys, labels, or feature strings.
+- Added per-host, per-cluster, and estate-wide VCF core licensing calculations with the 16-core minimum per physical CPU.
+- Added included vSAN entitlement, add-on TiB, and surplus TiB calculations with a verified raw-capacity override and explicit datastore-proxy warnings.
+- Added synthetic health-check and OCVS migration screenshots and downloadable PDF report samples.
+
+### Changed
+
+- Reworked the README with a more conversational voice and a report-inspired branded header.
+
 ## [0.1.2] - 2026-08-10
 
 ### Added
@@ -37,6 +50,7 @@ All notable changes to RVTools Analyzer are documented here.
 - First-class Claude Code and Codex plugin marketplace packaging.
 - Short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.2.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/KimTholstorf/rvtools-skill/releases/tag/v0.1.0
