@@ -122,7 +122,18 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("$rvtools-analyzer", readme)
         self.assertIn("/rvtools:analyze", readme)
         self.assertIn("Python 3.8", readme)
+        self.assertIn("pdf/health-check-report-sample.pdf", readme)
+        self.assertIn("pdf/ocvs-migration-analysis-sample.pdf", readme)
+        self.assertIn("fully synthetic data", readme)
         self.assertNotIn("/Users/", readme)
+
+        for sample_name in (
+            "health-check-report-sample.pdf",
+            "ocvs-migration-analysis-sample.pdf",
+        ):
+            sample = ROOT / "pdf" / sample_name
+            self.assertTrue(sample.is_file())
+            self.assertTrue(sample.read_bytes().startswith(b"%PDF-"))
 
         license_text = (ROOT / "LICENSE").read_text(encoding="utf-8")
         self.assertIn("MIT License", license_text)

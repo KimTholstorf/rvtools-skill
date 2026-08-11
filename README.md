@@ -1,5 +1,12 @@
 ![RVTools Analyzer. Ask inventory questions, calculate overcommit, assess OCVS and HCX migration risks, review VCF readiness, check vSphere health and hardware lifecycle, and create reports.](images/readme-hero.svg)
 
+## Sample reports
+
+- [Download the synthetic health-check sample (PDF)](pdf/health-check-report-sample.pdf)
+- [Download the synthetic OCVS migration sample (PDF)](pdf/ocvs-migration-analysis-sample.pdf)
+
+Both reports use fully synthetic data and contain no customer-derived inventory.
+
 ## Requirements
 
 You will need:
