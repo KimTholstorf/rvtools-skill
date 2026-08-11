@@ -1,17 +1,4 @@
-# RVTools Analyzer
-
-RVTools exports contain a lot of useful information, but working through every worksheet by hand gets old quickly. RVTools Analyzer lets you give an export to Claude or Codex and ask questions in plain language. It can also turn the same data into an OCVS/HCX migration assessment, a VCF readiness review, or a vSphere health check.
-
-The numbers come from Python, not guesswork. The agent uses that calculated data to answer follow-up questions, apply the right assessment lens, check time-sensitive hardware lifecycle information, and write the final report.
-
-## What it can do
-
-- Answer everyday inventory questions: How many VMs run Linux? Which VMs are powered off? What hardware is in cluster X?
-- Calculate CPU and memory overcommit ratios from powered-on workloads.
-- Find risks that matter to OCVS and VMware HCX migrations.
-- Review an environment for on-premises VMware Cloud Foundation.
-- Check snapshots, VMware Tools, removable devices, networking, storage, capacity, host lifecycle, and Hyper-Threading.
-- Produce self-contained HTML and Markdown reports that are ready to share or refine.
+![RVTools Analyzer. Ask inventory questions, calculate overcommit, assess OCVS and HCX migration risks, review VCF readiness, check vSphere health and hardware lifecycle, and create reports.](images/readme-hero.svg)
 
 ## Requirements
 
