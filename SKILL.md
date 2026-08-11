@@ -17,6 +17,8 @@ Classify each request before selecting a lens:
 
 Reuse the same workbook and local query index for conversational follow-ups. Reset the index when the user changes the workbook.
 
+For current VMware licence inventory or VCF/vSAN subscription-capacity questions, use the `license`, `vcf_license`, and `vcf_license_summary` query entities described in [references/querying.md](references/querying.md), then apply [references/vcf_onprem.md](references/vcf_onprem.md). Never reproduce a licence key.
+
 ## Select the lens
 
 Map the user's intent to exactly one lens unless they explicitly request a comparison or combined assessment:
@@ -74,6 +76,8 @@ python3 scripts/query_rvtools.py /absolute/path/to/export.xlsx \
 
 Translate the user's wording into the CLI's structured fields and filters according to [references/querying.md](references/querying.md). Return exact aggregates and state the applied scope. Use bounded row listings only when the user asks which objects are affected. Never query or reproduce non-allowlisted sensitive text.
 
+For an estate-wide VCF licensing estimate, query `vcf_license_summary`. If the user supplies verified raw vSAN capacity, pass it with `--vsan-raw-tib`; otherwise preserve the result's vSAN evidence label and caveat. Use `vcf_license` for per-host or per-cluster workings and `license` for sanitized current assignments.
+
 ## Interpret the selected lens
 
 1. Filter detections to the selected built-in lens using each detection's `lenses` list. For an added lens reference, use the detection IDs or categories named by that reference.
@@ -123,4 +127,6 @@ Before finishing:
 - Confirm thresholds are labeled vendor-backed or project heuristic according to the lens reference.
 - Confirm a hygiene assessment with `vHost` data covers every distinct vendor/model with an authoritative lifecycle status or an explicit coverage gap, and reports Hyper-Threading availability versus active state without treating unknown as false.
 - Confirm recommendations do not imply changes were executed.
+- Confirm a VCF licensing result uses physical cores with the per-CPU minimum, states the included host scope, and withholds the estate total when CPU topology is incomplete.
+- Confirm a vSAN result distinguishes verified raw TiB from an RVTools datastore-capacity proxy and reports either add-on TiB or surplus TiB, never both as positive.
 - Open or render the HTML artifact and fix clipped, unreadable, or empty sections.

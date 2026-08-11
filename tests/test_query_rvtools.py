@@ -96,8 +96,31 @@ class QueryRVToolsTests(unittest.TestCase):
         add_sheet(
             workbook,
             "vDatastore",
-            ["Name", "Capacity MiB", "Provisioned MiB", "In Use MiB", "Free MiB", "Free %", "Accessible"],
-            [["ds-01", 1000000, 700000, 600000, 400000, 40, True]],
+            [
+                "Name",
+                "Capacity MiB",
+                "Provisioned MiB",
+                "In Use MiB",
+                "Free MiB",
+                "Free %",
+                "Accessible",
+                "Type",
+                "Cluster name",
+                "URL",
+            ],
+            [
+                ["vsan-01", 100 * 1024 * 1024, 700000, 600000, 400000, 40, True, "vsan", "cluster-a", "ds:///vmfs/volumes/vsan:demo"],
+                ["san-01", 50 * 1024 * 1024, 700000, 600000, 400000, 40, True, "VMFS", "cluster-b", "ds:///vmfs/volumes/demo"],
+            ],
+        )
+        add_sheet(
+            workbook,
+            "vLicense",
+            ["Name", "Key", "Labels", "Cost Unit", "Total", "Used", "Expiration Date", "Features", "VI SDK Server"],
+            [
+                ["vSphere 8 Enterprise Plus", "AAAAA-BBBBB-CCCCC-DDDDD-EEEEE", "Production", "cpuPackage", 6, 5, "2027-12-31", "feature-list", "vcenter-a.example"],
+                ["vCenter Server 8 Standard", "FFFFF-GGGGG-HHHHH-IIIII-JJJJJ", "Management", "instance", 2, 1, "2027-12-31", "feature-list", "vcenter-a.example"],
+            ],
         )
         add_sheet(
             workbook,
@@ -276,6 +299,136 @@ class QueryRVToolsTests(unittest.TestCase):
 
         self.assertEqual(cdrom["rows"], [{"count": 1}])
         self.assertEqual(usb["rows"], [{"count": 1}])
+
+    def test_queries_sanitized_current_vmware_license_inventory(self):
+        self.assertIn("license", QUERY.ENTITY_SCHEMAS)
+        self.assertNotIn("key", QUERY.ENTITY_SCHEMAS["license"])
+        self.assertNotIn("features", QUERY.ENTITY_SCHEMAS["license"])
+        self.assertNotIn("labels", QUERY.ENTITY_SCHEMAS["license"])
+
+        result = QUERY.run_query(self.path, {"entity": "license", "limit": 10})
+
+        self.assertEqual(
+            result["rows"],
+            [
+                {
+                    "name": "vSphere 8 Enterprise Plus",
+                    "cost_unit": "cpuPackage",
+                    "total": 6.0,
+                    "used": 5.0,
+                    "expiration_date": "2027-12-31",
+                    "vi_sdk_server": "vcenter-a.example",
+                },
+                {
+                    "name": "vCenter Server 8 Standard",
+                    "cost_unit": "instance",
+                    "total": 2.0,
+                    "used": 1.0,
+                    "expiration_date": "2027-12-31",
+                    "vi_sdk_server": "vcenter-a.example",
+                },
+            ],
+        )
+        self.assertNotIn("AAAAA-BBBBB", json.dumps(result))
+
+    def test_calculates_vcf_core_and_vsan_capacity_balance(self):
+        hosts = QUERY.run_query(
+            self.path,
+            {
+                "entity": "vcf_license",
+                "select": [
+                    "host",
+                    "cluster",
+                    "cpu_sockets",
+                    "cores_per_cpu",
+                    "physical_cores",
+                    "vcf_licensable_cores",
+                    "core_minimum_adjustment",
+                ],
+                "limit": 10,
+            },
+        )
+        self.assertEqual(
+            [row["vcf_licensable_cores"] for row in hosts["rows"]],
+            [32.0, 32.0, 16.0],
+        )
+        self.assertEqual(
+            [row["core_minimum_adjustment"] for row in hosts["rows"]],
+            [16.0, 16.0, 8.0],
+        )
+        self.assertEqual(hosts["warnings"], [])
+
+        summary = QUERY.run_query(self.path, {"entity": "vcf_license_summary"})
+        self.assertEqual(
+            summary["rows"],
+            [
+                {
+                    "host_count": 3,
+                    "physical_cores": 40.0,
+                    "vcf_licensable_cores": 80.0,
+                    "core_calculation_complete": 1,
+                    "vsan_entitlement_tib": 80.0,
+                    "vsan_capacity_tib": 100.0,
+                    "vsan_capacity_evidence": "rvtools_vsan_datastore_capacity_proxy",
+                    "vsan_capacity_is_raw": 0,
+                    "vsan_addon_required_tib": 20.0,
+                    "vsan_entitlement_surplus_tib": 0.0,
+                }
+            ],
+        )
+        self.assertEqual(
+            {warning["code"] for warning in summary["warnings"]},
+            {"vsan_capacity_proxy"},
+        )
+
+    def test_uses_verified_raw_vsan_capacity_override(self):
+        result = QUERY.run_query(
+            self.path,
+            {"entity": "vcf_license_summary", "vsan_raw_tib": 70.5},
+        )
+
+        self.assertEqual(result["rows"][0]["vsan_capacity_tib"], 70.5)
+        self.assertEqual(result["rows"][0]["vsan_capacity_evidence"], "user_supplied_raw_tib")
+        self.assertEqual(result["rows"][0]["vsan_capacity_is_raw"], 1)
+        self.assertEqual(result["rows"][0]["vsan_addon_required_tib"], 0.0)
+        self.assertEqual(result["rows"][0]["vsan_entitlement_surplus_tib"], 9.5)
+        self.assertEqual(result["warnings"], [])
+
+    def test_requests_raw_vsan_capacity_when_no_vsan_evidence_exists(self):
+        workbook = load_workbook(self.path)
+        workbook["vDatastore"]["H2"] = "VMFS"
+        workbook["vDatastore"]["J2"] = "ds:///vmfs/volumes/demo"
+        workbook.save(self.path)
+        workbook.close()
+
+        result = QUERY.run_query(self.path, {"entity": "vcf_license_summary"})
+
+        row = result["rows"][0]
+        self.assertEqual(row["vsan_capacity_evidence"], "unavailable")
+        self.assertIsNone(row["vsan_capacity_tib"])
+        self.assertIsNone(row["vsan_addon_required_tib"])
+        self.assertIsNone(row["vsan_entitlement_surplus_tib"])
+        self.assertIn(
+            "vsan_raw_capacity_unavailable",
+            {item["code"] for item in result["warnings"]},
+        )
+
+    def test_withholds_estate_total_when_host_cpu_topology_is_incomplete(self):
+        workbook = load_workbook(self.path)
+        workbook["vHost"]["K4"] = None
+        workbook["vHost"]["L4"] = None
+        workbook.save(self.path)
+        workbook.close()
+
+        result = QUERY.run_query(self.path, {"entity": "vcf_license_summary"})
+
+        row = result["rows"][0]
+        self.assertEqual(row["core_calculation_complete"], 0)
+        self.assertIsNone(row["vcf_licensable_cores"])
+        self.assertIsNone(row["vsan_entitlement_tib"])
+        self.assertIsNone(row["vsan_addon_required_tib"])
+        self.assertIsNone(row["vsan_entitlement_surplus_tib"])
+        self.assertIn("missing_vcf_cpu_topology", {item["code"] for item in result["warnings"]})
 
     def test_rejects_non_allowlisted_fields(self):
         self.assertTrue(hasattr(QUERY, "run_query"))

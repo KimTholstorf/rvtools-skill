@@ -2,7 +2,7 @@
 
 Use this reference only for the `vcf_onprem` lens. Default to assessing migration into a newly designed VCF environment. If the user means brownfield convergence/import, state that assumption explicitly because the supported workflow and prerequisites differ.
 
-Last source review: 2026-08-07.
+Last source review: 2026-08-11.
 
 ## What RVTools can and cannot establish
 
@@ -16,6 +16,27 @@ RVTools can screen workload configuration, source host versions/models, network 
 - licensing entitlement, depot access, or lifecycle bundle availability.
 
 Always include these as external validation gates rather than silently marking the environment ready.
+
+## VCF and vSAN subscription-capacity estimate
+
+Use the query entities instead of calculating from VM or vCPU counts:
+
+- `license` returns sanitized RVTools `vLicense` inventory. It excludes keys, labels, and feature strings. Treat assigned and used values as point-in-time technical inventory, not proof of contractual entitlement, portability, renewal rights, or price.
+- `vcf_license` shows the per-host CPU topology and calculation.
+- `vcf_license_summary` returns the estate total and vSAN entitlement balance.
+
+Broadcom currently licenses VCF core capacity from physical CPU cores on every ESXi host in scope, with a minimum of 16 cores per physical CPU. For each host calculate `max(actual physical cores, CPU sockets × 16)`, then sum the hosts. Withhold the estate total when any included host lacks the socket/core evidence needed to apply the minimum. See [Broadcom core and vSAN capacity counting](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html).
+
+One purchased VCF core currently includes 1 TiB of vSAN capacity entitlement. Compare that entitlement with the total raw physical capacity contributed by all ESXi hosts to the vSAN clusters in scope:
+
+- `vSAN add-on TiB = max(raw vSAN TiB - VCF licensable cores, 0)`
+- `surplus vSAN entitlement TiB = max(VCF licensable cores - raw vSAN TiB, 0)`
+
+Report one side as zero; never imply that surplus entitlement is spare physical storage. Do not convert the TiB difference into pricing or a purchase-order quantity without checking the current contract and sales units.
+
+RVTools `vDatastore` capacity for rows identified as vSAN is only a planning proxy. It may differ from raw disk capacity because of metadata, architecture, claims, or reporting semantics. When the result says `rvtools_vsan_datastore_capacity_proxy`, label the add-on/surplus result as an estimate. Prefer independently verified raw capacity and pass it to `vcf_license_summary` with `--vsan-raw-tib`. If neither evidence source exists, report the included VCF vSAN entitlement and request raw TiB rather than inventing an add-on requirement.
+
+State the host scope. A current-estate total excludes future management-domain hosts, replacement hosts, DR capacity, or other target hardware absent from the workbook. For VCF 9 licensing mechanics, also consult [Broadcom's VCF 9 licensing overview](https://knowledge.broadcom.com/external/article/437242/getting-started-with-vmware-cloud-founda.html).
 
 ## Readiness gates
 

@@ -18,7 +18,7 @@ The index is owner-readable only and excludes annotations, snapshot descriptions
 python3 scripts/query_rvtools.py WORKBOOK --index INDEX --entity ENTITY \
   [--select FIELD]... [--metric METRIC]... [--filter FILTER]... \
   [--group-by FIELD]... [--order-by FIELD:asc|desc]... [--limit 1..100] \
-  [--include-templates] [--pretty]
+  [--include-templates] [--vsan-raw-tib TIB] [--pretty]
 ```
 
 Metrics:
@@ -34,7 +34,10 @@ Filters use `field=value` or `field__operator=value`. Supported operators are `e
 - `vm`: `vm`, `power_state`, `template`, `cluster`, `host`, `guest_os`, `guest_os_family`, `guest_os_source`, `cpus`, `memory_mib`, `provisioned_mib`, `in_use_mib`, `hardware_version`, `tools_status`, `consolidation_needed`
 - `host`: `host`, `cluster`, `vendor`, `model`, `cpu_vendor`, `cpu_model`, `ht_available`, `ht_active`, `cpu_sockets`, `cores_per_cpu`, `cores`, `cpu_speed_mhz`, `memory_mib`, `cpu_usage_percent`, `memory_usage_percent`, `bios_vendor`, `bios_version`, `bios_date`, `esxi_version`
 - `cluster`: `cluster`, `host_count`, `powered_on_vms`, `configured_vcpus`, `physical_cores`, `cpu_ratio`, `configured_memory_mib`, `physical_memory_mib`, `memory_ratio`, `powered_off_vms`, `powered_off_vcpus`, `powered_off_memory_mib`
-- `datastore`: `datastore`, `capacity_mib`, `provisioned_mib`, `in_use_mib`, `free_mib`, `free_percent`, `accessible`
+- `datastore`: `datastore`, `type`, `cluster`, `capacity_mib`, `provisioned_mib`, `in_use_mib`, `free_mib`, `free_percent`, `accessible`
+- `license`: `name`, `cost_unit`, `total`, `used`, `expiration_date`, `vi_sdk_server`
+- `vcf_license`: `host`, `cluster`, `cpu_sockets`, `cores_per_cpu`, `physical_cores`, `vcf_licensable_cores`, `core_minimum_adjustment`
+- `vcf_license_summary`: `host_count`, `physical_cores`, `vcf_licensable_cores`, `core_calculation_complete`, `vsan_entitlement_tib`, `vsan_capacity_tib`, `vsan_capacity_evidence`, `vsan_capacity_is_raw`, `vsan_addon_required_tib`, `vsan_entitlement_surplus_tib`
 - `disk`: `vm`, `template`, `power_state`, `cluster`, `host`, `disk`, `capacity_mib`, `raw`, `disk_mode`, `sharing_mode`, `raw_compatibility_mode`
 - `network`: `vm`, `template`, `power_state`, `network`, `switch`, `connected`, `cluster`, `host`
 - `snapshot`: `vm`, `template`, `cluster`, `host`, `created_at`, `size_mib`, `power_state`
@@ -50,6 +53,9 @@ Filters use `field=value` or `field__operator=value`. Supported operators are `e
 - Limit listings to 25 rows by default and never exceed 100. Aggregate counts are not truncated.
 - Treat a `null` overcommit ratio as unavailable and surface its coverage warning.
 - Treat `null` Hyper-Threading fields as unknown. Do not describe them as disabled or unavailable.
+- The `license` entity excludes licence keys, labels, and feature strings. Treat workbook assignments as inventory evidence, not proof of contractual entitlement.
+- Use `vcf_license_summary` for the current estate. Use `vcf_license` with cluster filters or grouping to show the per-host workings or model alternative target scopes.
+- Treat `rvtools_vsan_datastore_capacity_proxy` as an estimate because datastore capacity is not confirmed raw physical vSAN capacity. Use `--vsan-raw-tib` only with a verified raw capacity supplied by the user or another authoritative source.
 - Do not infer facts absent from returned rows. Run a follow-up query instead.
 
 ## Examples
@@ -85,6 +91,27 @@ python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
   --entity host --metric count \
   --group-by vendor --group-by model --group-by cpu_model \
   --group-by ht_available --group-by ht_active
+```
+
+Summarize sanitized current VMware licence assignments:
+
+```bash
+python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
+  --entity license --limit 100
+```
+
+Calculate estate-wide VCF cores and estimate the vSAN entitlement balance:
+
+```bash
+python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
+  --entity vcf_license_summary
+```
+
+Recalculate the vSAN balance from independently verified raw capacity:
+
+```bash
+python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
+  --entity vcf_license_summary --vsan-raw-tib 240
 ```
 
 List large powered-on VMs with bounded output:

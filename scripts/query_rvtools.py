@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 import os
 import sqlite3
 import sys
@@ -22,7 +23,7 @@ RVTOOLS = importlib.util.module_from_spec(PARSER_SPEC)
 assert PARSER_SPEC.loader is not None
 PARSER_SPEC.loader.exec_module(RVTOOLS)
 
-INDEX_SCHEMA_VERSION = "4"
+INDEX_SCHEMA_VERSION = "5"
 INDEXED_SHEETS = (
     "vInfo",
     "vHost",
@@ -34,6 +35,7 @@ INDEXED_SHEETS = (
     "vCD",
     "vUSB",
     "dvPort",
+    "vLicense",
 )
 
 ENTITY_SCHEMAS = {
@@ -91,12 +93,43 @@ ENTITY_SCHEMAS = {
     },
     "datastore": {
         "datastore": "TEXT",
+        "type": "TEXT",
+        "cluster": "TEXT",
         "capacity_mib": "REAL",
         "provisioned_mib": "REAL",
         "in_use_mib": "REAL",
         "free_mib": "REAL",
         "free_percent": "REAL",
         "accessible": "INTEGER",
+    },
+    "license": {
+        "name": "TEXT",
+        "cost_unit": "TEXT",
+        "total": "REAL",
+        "used": "REAL",
+        "expiration_date": "TEXT",
+        "vi_sdk_server": "TEXT",
+    },
+    "vcf_license": {
+        "host": "TEXT",
+        "cluster": "TEXT",
+        "cpu_sockets": "REAL",
+        "cores_per_cpu": "REAL",
+        "physical_cores": "REAL",
+        "vcf_licensable_cores": "REAL",
+        "core_minimum_adjustment": "REAL",
+    },
+    "vcf_license_summary": {
+        "host_count": "INTEGER",
+        "physical_cores": "REAL",
+        "vcf_licensable_cores": "REAL",
+        "core_calculation_complete": "INTEGER",
+        "vsan_entitlement_tib": "REAL",
+        "vsan_capacity_tib": "REAL",
+        "vsan_capacity_evidence": "TEXT",
+        "vsan_capacity_is_raw": "INTEGER",
+        "vsan_addon_required_tib": "REAL",
+        "vsan_entitlement_surplus_tib": "REAL",
     },
     "disk": {
         "vm": "TEXT",
@@ -176,7 +209,29 @@ DEFAULT_SELECT = {
         "esxi_version",
     ),
     "cluster": ("cluster", "host_count", "powered_on_vms", "cpu_ratio", "memory_ratio"),
-    "datastore": ("datastore", "capacity_mib", "provisioned_mib", "free_mib", "free_percent"),
+    "datastore": ("datastore", "type", "cluster", "capacity_mib", "provisioned_mib", "free_mib", "free_percent"),
+    "license": ("name", "cost_unit", "total", "used", "expiration_date", "vi_sdk_server"),
+    "vcf_license": (
+        "host",
+        "cluster",
+        "cpu_sockets",
+        "cores_per_cpu",
+        "physical_cores",
+        "vcf_licensable_cores",
+        "core_minimum_adjustment",
+    ),
+    "vcf_license_summary": (
+        "host_count",
+        "physical_cores",
+        "vcf_licensable_cores",
+        "core_calculation_complete",
+        "vsan_entitlement_tib",
+        "vsan_capacity_tib",
+        "vsan_capacity_evidence",
+        "vsan_capacity_is_raw",
+        "vsan_addon_required_tib",
+        "vsan_entitlement_surplus_tib",
+    ),
     "disk": ("vm", "power_state", "cluster", "disk", "capacity_mib", "disk_mode", "raw", "sharing_mode"),
     "network": ("vm", "power_state", "network", "switch", "connected", "cluster"),
     "snapshot": ("vm", "cluster", "created_at", "size_mib", "power_state"),
@@ -206,6 +261,11 @@ def _number(row, *headers):
     return RVTOOLS._whole_or_float(RVTOOLS._value(row, *headers))
 
 
+def _optional_number(row, *headers):
+    value = RVTOOLS._value(row, *headers)
+    return None if value in (None, "") else RVTOOLS._whole_or_float(value)
+
+
 def _bool(row, *headers):
     return int(RVTOOLS._truthy(RVTOOLS._value(row, *headers)))
 
@@ -214,6 +274,41 @@ def _optional_bool(row, *headers):
     value = RVTOOLS._value(row, *headers)
     status = RVTOOLS._optional_truthy(value)
     return None if status is None else int(status)
+
+
+def _vcf_core_values(row):
+    sockets = float(_number(row, "# CPU"))
+    cores_per_cpu = float(_number(row, "Cores per CPU"))
+    physical_cores = float(_number(row, "# Cores", "Cores"))
+    if sockets <= 0:
+        return sockets, cores_per_cpu, physical_cores, None, None
+    if physical_cores > 0:
+        licensable = max(physical_cores, sockets * 16)
+    elif cores_per_cpu > 0:
+        physical_cores = sockets * cores_per_cpu
+        licensable = sockets * max(cores_per_cpu, 16)
+    else:
+        return sockets, cores_per_cpu, physical_cores, None, None
+    return (
+        sockets,
+        cores_per_cpu,
+        physical_cores,
+        float(licensable),
+        float(licensable - physical_cores),
+    )
+
+
+def _tib_from_mib(value):
+    return round(float(value) / (1024 * 1024), 4)
+
+
+def _capacity_balance(entitlement_tib, capacity_tib):
+    if entitlement_tib is None or capacity_tib is None:
+        return None, None
+    return (
+        round(max(capacity_tib - entitlement_tib, 0), 4),
+        round(max(entitlement_tib - capacity_tib, 0), 4),
+    )
 
 
 def _create_table(connection, entity):
@@ -236,6 +331,7 @@ def _build_index(connection, workbook_path, digest):
     try:
         if "vInfo" not in workbook.sheetnames:
             raise ValueError("not an RVTools workbook: required vInfo sheet is missing")
+        sheetnames = set(workbook.sheetnames)
         rows = {sheet: RVTOOLS._read_rows(workbook, sheet) for sheet in INDEXED_SHEETS}
     finally:
         workbook.close()
@@ -315,6 +411,127 @@ def _build_index(connection, workbook_path, digest):
         ),
     )
 
+    _insert_rows(
+        connection,
+        "license",
+        (
+            {
+                "name": _text(row, "Name"),
+                "cost_unit": _text(row, "Cost Unit"),
+                "total": _optional_number(row, "Total"),
+                "used": _optional_number(row, "Used"),
+                "expiration_date": RVTOOLS._serializable(
+                    RVTOOLS._value(row, "Expiration Date")
+                ),
+                "vi_sdk_server": _text(row, "VI SDK Server"),
+            }
+            for row in rows["vLicense"]
+        ),
+    )
+
+    vcf_host_values = []
+    for row in rows["vHost"]:
+        sockets, cores_per_cpu, physical_cores, licensable_cores, adjustment = (
+            _vcf_core_values(row)
+        )
+        vcf_host_values.append(
+            {
+                "host": _text(row, "Host") or "(unnamed host)",
+                "cluster": _text(row, "Cluster") or "(unassigned)",
+                "cpu_sockets": sockets,
+                "cores_per_cpu": cores_per_cpu,
+                "physical_cores": physical_cores,
+                "vcf_licensable_cores": licensable_cores,
+                "core_minimum_adjustment": adjustment,
+            }
+        )
+    _insert_rows(connection, "vcf_license", vcf_host_values)
+
+    core_calculation_complete = bool(vcf_host_values) and all(
+        row["vcf_licensable_cores"] is not None for row in vcf_host_values
+    )
+    total_physical_cores = float(
+        sum(row["physical_cores"] for row in vcf_host_values)
+    )
+    total_licensable_cores = (
+        float(sum(row["vcf_licensable_cores"] for row in vcf_host_values))
+        if core_calculation_complete
+        else None
+    )
+    vsan_datastores = [
+        row
+        for row in rows["vDatastore"]
+        if "vsan" in _text(row, "Type").casefold()
+        or "vsan:" in _text(row, "URL").casefold()
+    ]
+    vsan_capacity_mib = sum(_number(row, "Capacity MiB") for row in vsan_datastores)
+    vsan_capacity_tib = _tib_from_mib(vsan_capacity_mib) if vsan_capacity_mib > 0 else None
+    vsan_evidence = (
+        "rvtools_vsan_datastore_capacity_proxy"
+        if vsan_capacity_tib is not None
+        else "unavailable"
+    )
+    vsan_addon_tib, vsan_surplus_tib = _capacity_balance(
+        total_licensable_cores, vsan_capacity_tib
+    )
+    _insert_rows(
+        connection,
+        "vcf_license_summary",
+        [
+            {
+                "host_count": len(vcf_host_values),
+                "physical_cores": total_physical_cores,
+                "vcf_licensable_cores": total_licensable_cores,
+                "core_calculation_complete": int(core_calculation_complete),
+                "vsan_entitlement_tib": total_licensable_cores,
+                "vsan_capacity_tib": vsan_capacity_tib,
+                "vsan_capacity_evidence": vsan_evidence,
+                "vsan_capacity_is_raw": 0,
+                "vsan_addon_required_tib": vsan_addon_tib,
+                "vsan_entitlement_surplus_tib": vsan_surplus_tib,
+            }
+        ],
+    )
+
+    licensing_warnings = []
+    if "vLicense" not in sheetnames:
+        licensing_warnings.append(
+            (
+                "missing_vlicense_sheet",
+                "license",
+                "vLicense is absent; current VMware licence assignments and consumption are unavailable.",
+            )
+        )
+    licensing_warnings.extend(
+        (
+            "missing_vcf_cpu_topology",
+            row["host"],
+            "VCF core capacity is unavailable because the host CPU socket/core topology is incomplete.",
+        )
+        for row in vcf_host_values
+        if row["vcf_licensable_cores"] is None
+    )
+    if vsan_capacity_tib is None:
+        licensing_warnings.append(
+            (
+                "vsan_raw_capacity_unavailable",
+                "vcf_license_summary",
+                "Raw vSAN capacity is not available from this RVTools export; provide verified raw TiB to calculate add-on or surplus capacity.",
+            )
+        )
+    else:
+        licensing_warnings.append(
+            (
+                "vsan_capacity_proxy",
+                "vcf_license_summary",
+                "RVTools vSAN datastore capacity is a planning proxy, not confirmed raw physical capacity; provide verified raw TiB for a licensing conclusion.",
+            )
+        )
+    connection.executemany(
+        "INSERT INTO query_warning (code, scope, message) VALUES (?, ?, ?)",
+        licensing_warnings,
+    )
+
     overcommit = RVTOOLS._overcommit_summary(rows)
     _insert_rows(connection, "cluster", overcommit["clusters"])
     connection.executemany(
@@ -335,6 +552,8 @@ def _build_index(connection, workbook_path, digest):
         (
             {
                 "datastore": _text(row, "Name") or "(unnamed datastore)",
+                "type": _text(row, "Type"),
+                "cluster": _text(row, "Cluster name", "Cluster") or "(unassigned)",
                 "capacity_mib": _number(row, "Capacity MiB"),
                 "provisioned_mib": _number(row, "Provisioned MiB"),
                 "in_use_mib": _number(row, "In Use MiB"),
@@ -645,6 +864,15 @@ def run_query(workbook, plan, *, index_path=None):
         raise FileNotFoundError(workbook_path)
     if workbook_path.suffix.casefold() != ".xlsx":
         raise ValueError("RVTools query input must be an .xlsx workbook")
+    vsan_raw_tib = plan.get("vsan_raw_tib")
+    if vsan_raw_tib is not None:
+        if str(plan.get("entity", "")).strip().casefold() != "vcf_license_summary":
+            raise ValueError("vsan_raw_tib is only allowed for entity 'vcf_license_summary'")
+        if plan.get("select") or plan.get("metrics") or plan.get("filters") or plan.get("group_by"):
+            raise ValueError("vsan_raw_tib requires the unfiltered default VCF licence summary")
+        vsan_raw_tib = float(vsan_raw_tib)
+        if not math.isfinite(vsan_raw_tib) or vsan_raw_tib < 0:
+            raise ValueError("vsan_raw_tib must be a finite non-negative number")
     entity, sql, parameters, fields, templates_excluded, limit = _compile_query(plan)
     connection, index_reused, digest = _cached_connection(workbook_path, index_path)
     connection.row_factory = sqlite3.Row
@@ -666,8 +894,31 @@ def run_query(workbook, plan, *, index_path=None):
                 )
                 warning_parameters = (exact_cluster,)
             else:
-                warning_query = "SELECT code, scope, message FROM query_warning"
+                warning_query = (
+                    "SELECT code, scope, message FROM query_warning "
+                    "WHERE code IN ('missing_physical_cpu_capacity', "
+                    "'missing_physical_memory_capacity', 'multi_vcenter_sources')"
+                )
                 warning_parameters = ()
+        elif entity == "vcf_license":
+            warning_query = (
+                "SELECT code, scope, message FROM query_warning "
+                "WHERE code IN ('missing_vcf_cpu_topology', 'multi_vcenter_sources')"
+            )
+            warning_parameters = ()
+        elif entity == "vcf_license_summary":
+            warning_query = (
+                "SELECT code, scope, message FROM query_warning "
+                "WHERE code IN ('missing_vcf_cpu_topology', 'vsan_capacity_proxy', "
+                "'vsan_raw_capacity_unavailable', 'multi_vcenter_sources')"
+            )
+            warning_parameters = ()
+        elif entity == "license":
+            warning_query = (
+                "SELECT code, scope, message FROM query_warning "
+                "WHERE code = 'missing_vlicense_sheet'"
+            )
+            warning_parameters = ()
         elif cluster_scoped:
             warning_query = (
                 "SELECT code, scope, message FROM query_warning "
@@ -685,6 +936,23 @@ def run_query(workbook, plan, *, index_path=None):
         connection.close()
     truncated = len(fetched) > limit
     rows = [dict(row) for row in fetched[:limit]]
+    if vsan_raw_tib is not None and rows:
+        entitlement_tib = rows[0]["vsan_entitlement_tib"]
+        addon_tib, surplus_tib = _capacity_balance(entitlement_tib, vsan_raw_tib)
+        rows[0].update(
+            {
+                "vsan_capacity_tib": vsan_raw_tib,
+                "vsan_capacity_evidence": "user_supplied_raw_tib",
+                "vsan_capacity_is_raw": 1,
+                "vsan_addon_required_tib": addon_tib,
+                "vsan_entitlement_surplus_tib": surplus_tib,
+            }
+        )
+        warnings = [
+            warning
+            for warning in warnings
+            if warning["code"] not in {"vsan_capacity_proxy", "vsan_raw_capacity_unavailable"}
+        ]
     return {
         "source": {"file": workbook_path.name, "sha256": digest},
         "query": {
@@ -693,6 +961,7 @@ def run_query(workbook, plan, *, index_path=None):
             "filters": list(plan.get("filters") or []),
             "group_by": list(plan.get("group_by") or []),
             "metrics": list(plan.get("metrics") or []),
+            "vsan_raw_tib": vsan_raw_tib,
         },
         "scope": {
             "templates_excluded": templates_excluded,
@@ -720,6 +989,11 @@ def main(argv=None):
     argument_parser.add_argument("--limit", type=int, default=25, help="Maximum rows returned, from 1 to 100")
     argument_parser.add_argument("--include-templates", action="store_true", help="Include templates for VM-linked entities")
     argument_parser.add_argument("--index", type=Path, help="Optional reusable SQLite index path")
+    argument_parser.add_argument(
+        "--vsan-raw-tib",
+        type=float,
+        help="Verified raw vSAN capacity in TiB for the VCF licence summary",
+    )
     argument_parser.add_argument("--pretty", action="store_true", help="Indent JSON output")
     args = argument_parser.parse_args(argv)
     plan = {
@@ -731,6 +1005,7 @@ def main(argv=None):
         "order_by": args.order_by,
         "limit": args.limit,
         "include_templates": args.include_templates,
+        "vsan_raw_tib": args.vsan_raw_tib,
     }
     try:
         result = run_query(args.workbook, plan, index_path=args.index)
