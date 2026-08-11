@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.4.0")
+        self.assertEqual(manifest["version"], "0.4.1")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -132,12 +132,14 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("Python 3.8", readme)
         self.assertIn("pdf/health-check-report-sample.pdf", readme)
         self.assertIn("pdf/ocvs-migration-analysis-sample.pdf", readme)
+        self.assertIn("pdf/ocvs-sizing-report-sample.pdf", readme)
         self.assertIn("fully synthetic data", readme)
         self.assertNotIn("/Users/", readme)
 
         for sample_name in (
             "health-check-report-sample.pdf",
             "ocvs-migration-analysis-sample.pdf",
+            "ocvs-sizing-report-sample.pdf",
         ):
             sample = ROOT / "pdf" / sample_name
             self.assertTrue(sample.is_file())
@@ -147,6 +149,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("## [0.4.1] - 2026-08-11", changelog)
         self.assertIn("## [0.4.0] - 2026-08-11", changelog)
         self.assertNotIn("beta", changelog.casefold())
 

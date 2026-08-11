@@ -4,26 +4,30 @@
 
 - Answer questions about VMs, operating systems, power states, hosts, clusters, and hardware.
 - Calculate CPU and memory overcommit ratios.
-- Assess each workload for an HCX migration to Oracle Cloud VMware Solution (OCVS), Azure VMware Solution (AVS), or Google Cloud VMware Engine (GCVE).
-- Compare HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, and Cold Migration per VM.
-- Explore the dated AVS host and GCVE node catalogs through normal questions.
 - Review VMware Cloud Foundation readiness.
+- Compare HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, and Cold Migration per VM.
 - Estimate required VCF cores and included, additional, or surplus vSAN capacity.
 - Run vSphere health checks, including hardware lifecycle and support status.
+- Assess each workload for migration to OCVS, AVS, or GCVE using HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, or Cold Migration.
+- Size the target cluster from powered-on workloads, including N+1 capacity and VCF licensing based on each node’s full physical silicon (as per updated Broadcom silicon guidance of June 17, 2026. [Broadcom KB 313548](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html)).
+- Explore OCVS shapes, AVS hosts, and GCVE nodes through normal questions.
 - Create self-contained HTML and Markdown reports.
 
 ## Sample reports
 
 - [Download the synthetic health-check sample (PDF)](pdf/health-check-report-sample.pdf)
 - [Download the synthetic OCVS migration sample (PDF)](pdf/ocvs-migration-analysis-sample.pdf)
+- [Download the synthetic OCVS sizing sample (PDF)](pdf/ocvs-sizing-report-sample.pdf)
 
-Both reports use fully synthetic data and contain no customer-derived inventory.
+All three reports use fully synthetic data and contain no customer-derived inventory.
 
 ## Cloud VMware migration assessments
 
 For OCVS, AVS, and GCVE assessments, the skill checks every non-template VM against each HCX migration method. A workload is reported as `eligible`, `conditional`, `blocked`, or `unknown`, with the reasons kept alongside the result. Missing compatibility data is reported as unknown instead of quietly passing the VM.
 
 The assessment also covers provider-specific planning details such as target CPU compatibility, AVS host types, GCVE node families, storage architecture, regional availability, networking, and licensing checks. These catalogs are dated snapshots of vendor documentation. The skill checks current primary sources before using them in a customer design.
+
+For VCF licensing, sizing always counts every physical silicon core in each purchased host, even when the cloud provider offers a reduced-core configuration. Broadcom's [core-counting guidance](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html) confirms that all physical CPU cores must be licensed and warns that disabling cores can produce an inaccurate count.
 
 ## Requirements
 

@@ -1,90 +1,102 @@
 # Changelog
 
-All notable changes to RVTools Analyzer are documented here.
+This file tracks each RVTools Analyzer release.
+
+## [0.4.1] - 2026-08-11
+
+### Added
+
+- A downloadable synthetic OCVS sizing report that demonstrates host selection, N+1 capacity, large-VM fit, and full-silicon VCF licensing without customer data.
+
+### Changed
+
+- Expanded the README guidance for cloud migration sizing and full-silicon VCF licensing.
+- Reworked the changelog wording to make the release history easier to read.
 
 ## [0.4.0] - 2026-08-11
 
 ### Added
 
-- Added an OCVS node catalog that distinguishes configured compute cores from full physical silicon and VCF-licensable cores.
-- Added a shared default sizing policy for OCVS, AVS, and GCVE: powered-on workloads, 4:1 CPU allocation, accepted aggregate memory overcommit, zero generic growth uplift, and one additional N+1 host.
-- Added explicit assessment-perimeter coverage and acronym-glossary sections to generated reports.
+- An OCVS node catalog with separate values for configured compute capacity, full physical silicon, and VCF-licensable cores.
+- A shared OCVS, AVS, and GCVE sizing policy based on powered-on workloads, a 4:1 CPU ratio, accepted aggregate memory overcommit, no generic growth uplift, and one N+1 host.
+- Generated reports now show the assessment perimeter and end with an acronym glossary.
 
 ### Changed
 
-- Cloud-node recommendations now calculate workload fit from configured physical cores while calculating portable VCF licensing from every physical silicon core in each purchased node.
-- Extended `target_node` conversational queries with shape series, CPU vendor, configured cores, silicon cores, VCF-licensable cores, and the licensing basis.
-- Bumped the local query-index schema to 7 for the expanded target-node records.
+- Target recommendations use configured physical cores for workload fit and every physical silicon core in each purchased node for portable VCF licensing.
+- Conversational `target_node` queries now return the shape series, CPU vendor, configured cores, silicon cores, VCF-licensable cores, and licensing basis.
+- The local query-index schema is now version 7 to support the expanded target-node records.
 
 ## [0.3.0] - 2026-08-11
 
 ### Added
 
-- Added per-VM screening for HCX vMotion, RAV, Bulk Migration, and Cold Migration across OCVS, AVS, and GCVE.
-- Added separate provider profiles, manual validation gates, and primary vendor references for all three cloud targets.
-- Added dated AVS host and GCVE node catalogs, including AV64 OSA and ESA storage variants.
-- Added conversational `migration_method`, `migration_finding`, and `target_node` query entities.
+- Per-VM screening for HCX vMotion, RAV, Bulk Migration, and Cold Migration across OCVS, AVS, and GCVE.
+- Separate provider profiles, manual validation gates, and primary vendor references for each cloud target.
+- Dated AVS host and GCVE node catalogs, including the AV64 OSA and ESA storage variants.
+- Conversational queries for `migration_method`, `migration_finding`, and `target_node` records.
 
 ### Changed
 
-- Replaced detection-to-lens coupling with provider-neutral source tags and target-specific migration results.
-- Bumped the parser output schema to 2.0 and the local query-index schema to 6 for the new migration records.
-- Moved ESXi compatibility to the current HCX interoperability check instead of relying on a static minimum version.
-- Kept duplicate VM names distinct by vCenter or host where RVTools provides enough identity data.
+- Migration detections now use provider-neutral source tags and produce target-specific results.
+- The parser output schema moved to version 2.0 and the local query-index schema to version 6 for the new migration records.
+- ESXi compatibility now uses the current HCX interoperability check instead of a static minimum version.
+- Duplicate VM names remain distinct by vCenter or host when RVTools provides enough identity data.
 
 ### Fixed
 
-- Missing virtual hardware or CPU-vendor evidence now produces an `unknown` result instead of a false eligible result.
-- Added an explicit manual gate when duplicate VM names cannot be tied safely to related workbook rows.
+- Missing virtual hardware or CPU-vendor evidence now returns `unknown` instead of incorrectly marking a VM as eligible.
+- Ambiguous duplicate VM names now trigger a manual check when related workbook rows cannot be matched safely.
 
 ## [0.2.0] - 2026-08-11
 
 ### Added
 
-- Added sanitized conversational queries for current VMware licence inventory without exposing licence keys, labels, or feature strings.
-- Added per-host, per-cluster, and estate-wide VCF core licensing calculations with the 16-core minimum per physical CPU.
-- Added included vSAN entitlement, add-on TiB, and surplus TiB calculations with a verified raw-capacity override and explicit datastore-proxy warnings.
-- Added synthetic health-check and OCVS migration screenshots and downloadable PDF report samples.
+- Sanitized conversational queries for current VMware licence inventory without exposing keys, labels, or feature strings.
+- VCF core calculations by host, cluster, or estate, including the 16-core minimum for each physical CPU.
+- vSAN entitlement, add-on, and surplus TiB calculations, with a verified raw-capacity override and clear warnings when datastore capacity is only a proxy.
+- Synthetic health-check and OCVS migration screenshots, plus downloadable PDF report samples.
 
 ### Changed
 
-- Reworked the README with a more conversational voice and a report-inspired branded header.
+- Reworked the README in a more conversational voice and added a report-inspired header.
 
 ## [0.1.2] - 2026-08-10
 
 ### Added
 
-- Added a separate release workflow that packages a Claude Desktop-compatible skill ZIP only after CI succeeds for a version-tagged commit.
+- A separate release workflow packages the Claude Desktop skill ZIP after CI passes for a version-tagged commit.
 
 ### Fixed
 
-- Closed RVTools workbook handles after parsing and query indexing so Windows can clean up temporary files.
-- Avoided calling the POSIX-only `os.fchmod` API when it is unavailable on Windows.
+- RVTools workbook handles now close after parsing and query indexing, allowing Windows to clean up temporary files.
+- The runtime no longer calls the POSIX-only `os.fchmod` API when it is unavailable on Windows.
 
 ## [0.1.1] - 2026-08-10
 
 ### Changed
 
-- Redesigned the self-contained HTML report with a flat Oracle-inspired presentation style, clearer assessment hierarchy, responsive behavior, and print/PDF optimization.
+- Redesigned the self-contained HTML report with an Oracle-inspired presentation style, clearer hierarchy, responsive layouts, and print-friendly output.
 
 ### Fixed
 
-- Made privacy-permission tests portable to Windows, where access is represented by ACLs rather than POSIX mode bits.
+- Privacy-permission tests now work on Windows, where access is represented by ACLs rather than POSIX mode bits.
 
 ## [0.1.0] - 2026-08-10
 
 ### Added
 
-- Deterministic RVTools workbook parsing with bounded evidence and 32 risk detections.
-- Conversational, allowlisted inventory queries backed by a reusable local SQLite index.
+- Deterministic RVTools workbook parsing with bounded evidence and 32 risk checks.
+- Allowlisted conversational inventory queries backed by a reusable local SQLite index.
 - OCVS/HCX migration, on-premises VCF, and vSphere health-check lenses.
 - CPU and memory overcommit calculations by cluster and across the environment.
-- Host vendor, model, CPU, BIOS, Hyper-Threading, and lifecycle assessment guidance.
-- Self-contained HTML and Markdown assessment output.
-- Private on-demand Python environment with pinned, hash-verified dependencies.
-- First-class Claude Code and Codex plugin marketplace packaging.
-- Short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
+- Guidance for assessing host vendor, model, CPU, BIOS, Hyper-Threading, and hardware lifecycle.
+- Self-contained HTML and Markdown reports.
+- A private, on-demand Python environment with pinned and hash-verified dependencies.
+- Plugin marketplace packaging for Claude Code and Codex.
+- The short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.4.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.2...v0.2.0
