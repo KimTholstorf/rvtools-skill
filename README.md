@@ -1,4 +1,14 @@
-![RVTools Analyzer. Ask inventory questions, calculate overcommit, assess OCVS and HCX migration risks, review VCF readiness, check vSphere health and hardware lifecycle, and create reports.](images/readme-hero.svg)
+![RVTools Analyzer. Ask questions about VMware inventory and turn RVTools exports into migration, readiness, and health-check reports.](images/readme-hero.svg)
+
+## What it can do
+
+- Answer questions about VMs, operating systems, power states, hosts, clusters, and hardware.
+- Calculate CPU and memory overcommit ratios.
+- Assess OCVS and VMware HCX migration risks.
+- Review VMware Cloud Foundation readiness.
+- Estimate required VCF cores and included, additional, or surplus vSAN capacity.
+- Run vSphere health checks, including hardware lifecycle and support status.
+- Create self-contained HTML and Markdown reports.
 
 ## Sample reports
 
@@ -17,9 +27,9 @@ You will need:
 
 The launcher does not use `sudo` or install packages globally. If the required packages are missing, it creates a private Python environment in the plugin's writable data directory and installs pinned, hash-verified versions of `openpyxl`, `et_xmlfile`, and `defusedxml` there.
 
-## Install with Claude
+## Install and update
 
-### Claude Code CLI
+### Claude Code
 
 ```bash
 claude plugin marketplace add KimTholstorf/rvtools-skill
@@ -43,7 +53,7 @@ You can chat normally or call the command directly:
 
 The release ZIP is built only after the tagged commit passes CI. It contains the standalone skill bundle expected by Claude Desktop. Once enabled, just start a conversation and attach an RVTools export. The `/rvtools:analyze` command is only part of the Claude Code plugin installation.
 
-## Install in Codex
+### Codex
 
 ```bash
 codex plugin marketplace add KimTholstorf/rvtools-skill --ref main
@@ -58,6 +68,24 @@ Then chat normally or invoke the skill explicitly:
 $rvtools-analyzer Run an OCVS migration analysis on this RVTools export.
 ```
 
+### Updating
+
+For Claude Code:
+
+```bash
+claude plugin update rvtools@rvtools-analyzer
+```
+
+Restart Claude Code when the update finishes, or run `/reload-plugins` if prompted.
+
+For Codex:
+
+```bash
+codex plugin marketplace upgrade rvtools-analyzer
+```
+
+This refreshes the installed marketplace snapshot. Start a new Codex task afterward so it loads the updated plugin.
+
 ## Examples
 
 Attach an RVTools `.xlsx` export, or provide its local path, and ask something like:
@@ -66,6 +94,8 @@ Attach an RVTools `.xlsx` export, or provide its local path, and ask something l
 - “How many Linux VMs run in each cluster?”
 - “What are the CPU and memory overcommit ratios for cluster Production?”
 - “List the host vendors, models, CPU models, and Hyper-Threading state.”
+- “What VMware licences are recorded in this export? Don’t show the licence keys.”
+- “How many VCF cores does this estate need, and will it need extra vSAN capacity?”
 - “Run a vSphere health check and create an HTML report.”
 - “Assess this environment for an OCVS migration using HCX.”
 
