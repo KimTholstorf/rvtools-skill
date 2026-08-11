@@ -35,11 +35,25 @@ RVTools cannot establish these facts. Every report must list them as open eviden
 - measured bandwidth, latency, packet loss, and data-change rate;
 - DNS, NTP, routing, firewall ports, certificates, and service-account permissions;
 - overlapping source, target, management, and workload CIDRs;
-- sustained CPU, memory, storage latency/IOPS/throughput, network history, HA reserve, management overhead, and growth;
+- sustained CPU, memory, storage latency/IOPS/throughput, and network history to validate the proposed consolidation ratios;
 - backup, monitoring, security, application dependency, cutover, rollback, and business-owner validation;
 - successful HCX Validate for each migration group immediately before execution.
 
 Broadcom notes that migration scale depends on storage, hosts, bandwidth, latency, packet loss, disk count, and churn. Do not turn an RVTools inventory total into a safe concurrency number.
+
+## Default compute-sizing policy
+
+Use this policy for OCVS, AVS, and GCVE unless the user supplies different assumptions:
+
+- Size only powered-on, non-template VMs. Report powered-off VMs separately as excluded demand that will require capacity if returned to service.
+- Use a 4:1 configured-vCPU-to-configured-physical-core ratio. Use the node's `configured_physical_cores`, not logical threads, enabled vCPUs, or full-silicon licensing cores, for workload fit.
+- Apply 0% growth uplift and no generic CPU, memory, or management-workload allowance. Add an allowance only when the user explicitly requests one.
+- Calculate workload hosts as `ceil(powered_on_vcpus / (configured_physical_cores_per_host * cpu_ratio))`, then add one additional compute host for N+1 failure and patching reserve. Apply a larger current provider minimum when required.
+- Memory is not a binding host-count constraint: accept aggregate configured-memory overcommit and report its ratio against the workload hosts available after reserving N+1. Do not add hosts solely because aggregate configured VM memory exceeds physical RAM.
+- Still reject a node type when the largest powered-on VM cannot fit on one host, and surface reservations, latency-sensitive workloads, NUMA constraints, or sustained memory pressure as validation gates.
+- Do not use a ratio above 4:1 from an RVTools snapshot alone. Use a higher ratio only when the user selects it or sustained performance evidence supports it; label the evidence and show the resulting ratio.
+
+For every recommendation, show powered-on vCPU and memory demand, the assumed CPU ratio, workload-host count, N+1 host count, total host count, aggregate memory-overcommit ratio, excluded powered-off demand, and VCF licensing based on all physical silicon in every purchased host. Keep storage sizing separate: vSAN policy overhead, rebuild reserve, operational free space, and migration staging still apply even though compute sizing uses 0% growth uplift.
 
 ## Reporting
 

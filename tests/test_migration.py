@@ -114,6 +114,18 @@ class MigrationAssessmentTests(unittest.TestCase):
         self.assertEqual(av64["raw_storage_tb_osa"], 15.36)
         self.assertEqual(av64["raw_storage_tb_esa"], 19.25)
 
+        sizing_gate = next(
+            gate for gate in avs["manual_gates"] if gate["id"] == "performance_sizing"
+        )
+        for required in (
+            "powered-on non-template VMs",
+            "4:1 CPU allocation ratio",
+            "memory overcommit",
+            "zero growth uplift",
+            "one-host N+1 reserve",
+        ):
+            self.assertIn(required, sizing_gate["evidence"])
+
     def test_ocvs_can_apply_an_explicit_target_cpu_vendor(self):
         result = self.migration.assess_migration(
             self.rows, "ocvs", target_cpu_vendor="AMD"

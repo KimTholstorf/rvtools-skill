@@ -46,7 +46,7 @@ Filters use `field=value` or `field__operator=value`. Supported operators are `e
 - `usb`: `vm`, `template`, `power_state`, `cluster`, `host`, `connected`, `device_type`
 - `migration_method`: `target`, `vm`, `cluster`, `host`, `vcenter`, `method`, `status`, `reason_ids`
 - `migration_finding`: `target`, `finding_id`, `category`, `vm`, `cluster`, `host`, `vcenter`, `status`, `methods`, `summary`
-- `target_node`: `target`, `node_type`, `physical_cores`, `logical_threads`, `cpu_vendor`, `cpu_model`, `memory_gib`, `raw_storage_tb`, `raw_storage_tb_osa`, `raw_storage_tb_esa`, `vsan_architecture`, `storage_only`, `availability`, `catalog_reviewed`
+- `target_node`: `target`, `node_type`, `shape_series`, `physical_cores`, `configured_physical_cores`, `silicon_cores`, `vcf_licensable_cores`, `vcf_license_core_basis`, `logical_threads`, `cpu_vendor`, `cpu_model`, `memory_gib`, `raw_storage_tb`, `raw_storage_tb_osa`, `raw_storage_tb_esa`, `vsan_architecture`, `storage_only`, `availability`, `catalog_reviewed`
 
 ## Defaults and answer discipline
 
@@ -62,6 +62,7 @@ Filters use `field=value` or `field__operator=value`. Supported operators are `e
 - Do not infer facts absent from returned rows. Run a follow-up query instead.
 - Migration entities contain deterministic RVTools screening for OCVS, AVS, and GCVE. `eligible` is not proof of HCX compatibility. Repeat the returned `migration_screening_not_validation` warning and use the selected provider lens for recommendations.
 - The `target_node` catalog is dated. Recheck current provider specifications, region availability, quotas, and commercial terms before using it for a customer design.
+- For target sizing, use `configured_physical_cores` for usable compute capacity and workload fit. Use `silicon_cores` and `vcf_licensable_cores` for portable-VCF licensing, including reduced-core and storage-only node variants. Never substitute enabled cores, configured vCPUs, or logical threads for the full physical-silicon license count. If the full silicon count cannot be verified, report a licensing coverage gap instead of a license estimate. This follows Broadcom's current [core-counting guidance](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html).
 
 ## Examples
 

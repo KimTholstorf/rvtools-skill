@@ -23,7 +23,7 @@ RVTOOLS = importlib.util.module_from_spec(PARSER_SPEC)
 assert PARSER_SPEC.loader is not None
 PARSER_SPEC.loader.exec_module(RVTOOLS)
 
-INDEX_SCHEMA_VERSION = "6"
+INDEX_SCHEMA_VERSION = "7"
 INDEXED_SHEETS = (
     "vInfo",
     "vHost",
@@ -216,7 +216,12 @@ ENTITY_SCHEMAS = {
     "target_node": {
         "target": "TEXT",
         "node_type": "TEXT",
+        "shape_series": "TEXT",
         "physical_cores": "REAL",
+        "configured_physical_cores": "REAL",
+        "silicon_cores": "REAL",
+        "vcf_licensable_cores": "REAL",
+        "vcf_license_core_basis": "TEXT",
         "logical_threads": "REAL",
         "cpu_vendor": "TEXT",
         "cpu_model": "TEXT",
@@ -291,7 +296,12 @@ DEFAULT_SELECT = {
     "target_node": (
         "target",
         "node_type",
+        "shape_series",
         "physical_cores",
+        "configured_physical_cores",
+        "silicon_cores",
+        "vcf_licensable_cores",
+        "vcf_license_core_basis",
         "logical_threads",
         "cpu_vendor",
         "cpu_model",

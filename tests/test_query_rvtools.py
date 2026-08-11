@@ -16,6 +16,7 @@ SPEC = importlib.util.spec_from_file_location("query_rvtools", MODULE_PATH)
 QUERY = importlib.util.module_from_spec(SPEC)
 assert SPEC.loader is not None
 SPEC.loader.exec_module(QUERY)
+TARGETS = importlib.import_module("rvtools.targets")
 
 
 def add_sheet(workbook, name, headers, rows):
@@ -356,6 +357,102 @@ class QueryRVToolsTests(unittest.TestCase):
         )
         self.assertEqual(findings["rows"][0]["vm"], "windows-off")
         self.assertEqual(findings["rows"][0]["status"], "blocked")
+
+    def test_target_catalog_licenses_full_silicon_when_compute_cores_are_reduced(self):
+        selected_ocvs = TARGETS.target_profile(
+            "ocvs", target_node="BM.Standard.E5.192-96"
+        )
+        gcve = QUERY.run_query(
+            self.path,
+            {
+                "entity": "target_node",
+                "select": [
+                    "target",
+                    "node_type",
+                    "configured_physical_cores",
+                    "silicon_cores",
+                    "vcf_licensable_cores",
+                ],
+                "filters": ["target=gcve", "node_type=ve2-standard-64"],
+            },
+        )
+        ocvs = QUERY.run_query(
+            self.path,
+            {
+                "entity": "target_node",
+                "select": [
+                    "target",
+                    "node_type",
+                    "shape_series",
+                    "cpu_vendor",
+                    "configured_physical_cores",
+                    "silicon_cores",
+                    "vcf_licensable_cores",
+                ],
+                "filters": ["target=ocvs", "node_type=BM.Standard.E5.192-96"],
+            },
+        )
+        storage_only = QUERY.run_query(
+            self.path,
+            {
+                "entity": "target_node",
+                "select": [
+                    "node_type",
+                    "configured_physical_cores",
+                    "silicon_cores",
+                    "vcf_licensable_cores",
+                    "storage_only",
+                ],
+                "filters": ["target=gcve", "node_type=ve2-standard-so"],
+            },
+        )
+
+        self.assertEqual(
+            gcve["rows"],
+            [
+                {
+                    "target": "gcve",
+                    "node_type": "ve2-standard-64",
+                    "configured_physical_cores": 32.0,
+                    "silicon_cores": 64.0,
+                    "vcf_licensable_cores": 64.0,
+                }
+            ],
+        )
+        self.assertEqual(selected_ocvs["cpu_vendor"], "AMD")
+        self.assertEqual(selected_ocvs["selected_node"]["vcf_licensable_cores"], 192)
+        with self.assertRaisesRegex(ValueError, "uses AMD hosts"):
+            TARGETS.target_profile(
+                "ocvs",
+                target_node="BM.Standard.E5.192-96",
+                target_cpu_vendor="Intel",
+            )
+        self.assertEqual(
+            ocvs["rows"],
+            [
+                {
+                    "target": "ocvs",
+                    "node_type": "BM.Standard.E5.192-96",
+                    "shape_series": "BM.Standard.E5.192",
+                    "cpu_vendor": "AMD",
+                    "configured_physical_cores": 96.0,
+                    "silicon_cores": 192.0,
+                    "vcf_licensable_cores": 192.0,
+                }
+            ],
+        )
+        self.assertEqual(
+            storage_only["rows"],
+            [
+                {
+                    "node_type": "ve2-standard-so",
+                    "configured_physical_cores": 0.0,
+                    "silicon_cores": 64.0,
+                    "vcf_licensable_cores": 64.0,
+                    "storage_only": 1,
+                }
+            ],
+        )
 
     def test_queries_sanitized_current_vmware_license_inventory(self):
         self.assertIn("license", QUERY.ENTITY_SCHEMAS)

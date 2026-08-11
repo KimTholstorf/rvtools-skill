@@ -46,20 +46,24 @@ claude plugin install rvtools@rvtools-analyzer
 
 If Claude asks for a plugin reload, run `/reload-plugins` or start a fresh session.
 
+This installation works in the Claude Code CLI and in local sessions opened from the [Code tab in Claude Desktop](https://code.claude.com/docs/en/desktop). Both use the Claude Code plugin system, so you do not need the release ZIP for the Code tab.
+
 You can chat normally or call the command directly:
 
 ```text
 /rvtools:analyze How many powered-off VMs are in this workbook?
 ```
 
-### Claude Desktop
+### Claude Desktop Chat
+
+Use the ZIP only if you want RVTools Analyzer available in regular Claude conversations through the Chat tab. Installing the plugin with the Claude Code CLI does not add it to Claude Chat's separate custom-skills list.
 
 1. Open the [latest GitHub release](https://github.com/KimTholstorf/rvtools-skill/releases/latest).
 2. Under **Assets**, download `rvtools-skill-<version>.zip`. Do not use GitHub's automatically generated source-code ZIP.
 3. In Claude Desktop, open **Settings → Customize → Skills → Add → Upload a skill**.
 4. Select the downloaded ZIP and enable **RVTools Analyzer**.
 
-The release ZIP is built only after the tagged commit passes CI. It contains the standalone skill bundle expected by Claude Desktop. Once enabled, just start a conversation and attach an RVTools export. The `/rvtools:analyze` command is only part of the Claude Code plugin installation.
+The release ZIP is built only after the tagged commit passes CI. It contains the standalone bundle required by Claude's [custom-skill upload](https://support.claude.com/en/articles/12512180-use-skills-in-claude). Once enabled, start a chat and attach an RVTools export. The `/rvtools:analyze` command belongs to the Claude Code plugin and is not used in ordinary Chat conversations.
 
 ### Codex
 

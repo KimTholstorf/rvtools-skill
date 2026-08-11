@@ -2,6 +2,20 @@
 
 All notable changes to RVTools Analyzer are documented here.
 
+## [0.4.0] - 2026-08-11
+
+### Added
+
+- Added an OCVS node catalog that distinguishes configured compute cores from full physical silicon and VCF-licensable cores.
+- Added a shared default sizing policy for OCVS, AVS, and GCVE: powered-on workloads, 4:1 CPU allocation, accepted aggregate memory overcommit, zero generic growth uplift, and one additional N+1 host.
+- Added explicit assessment-perimeter coverage and acronym-glossary sections to generated reports.
+
+### Changed
+
+- Cloud-node recommendations now calculate workload fit from configured physical cores while calculating portable VCF licensing from every physical silicon core in each purchased node.
+- Extended `target_node` conversational queries with shape series, CPU vendor, configured cores, silicon cores, VCF-licensable cores, and the licensing basis.
+- Bumped the local query-index schema to 7 for the expanded target-node records.
+
 ## [0.3.0] - 2026-08-11
 
 ### Added
@@ -71,6 +85,7 @@ All notable changes to RVTools Analyzer are documented here.
 - First-class Claude Code and Codex plugin marketplace packaging.
 - Short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.4.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.1.1...v0.1.2

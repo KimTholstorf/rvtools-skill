@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.3.0")
+        self.assertEqual(manifest["version"], "0.4.0")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -120,6 +120,8 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("rvtools-skill-<version>.zip", readme)
         self.assertIn("Settings → Customize → Skills → Add → Upload a skill", readme)
         self.assertIn("Do not use GitHub's automatically generated source-code ZIP", readme)
+        self.assertIn("you do not need the release ZIP for the Code tab", readme)
+        self.assertIn("only if you want RVTools Analyzer available in regular Claude conversations", readme)
         self.assertIn("codex plugin marketplace add KimTholstorf/rvtools-skill", readme)
         self.assertIn("claude plugin update rvtools@rvtools-analyzer", readme)
         self.assertIn("codex plugin marketplace upgrade rvtools-analyzer", readme)
@@ -145,7 +147,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-        self.assertIn("## [0.3.0] - 2026-08-11", changelog)
+        self.assertIn("## [0.4.0] - 2026-08-11", changelog)
         self.assertNotIn("beta", changelog.casefold())
 
     def test_claude_desktop_zip_is_released_only_after_successful_tagged_ci(self):
@@ -212,23 +214,36 @@ class SkillContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertEqual(template.count('class="report-section'), 7)
+        self.assertEqual(template.count('class="report-section'), 9)
         for slot in (
             "REPORT_TITLE",
             "LENS_LABEL",
             "ASSESSMENT_DATE",
             "EXECUTIVE_SUMMARY",
             "KPI_CARDS",
+            "SCOPE_AND_COVERAGE",
             "FINDING_CARDS",
             "INVENTORY_TABLE",
             "OVERCOMMIT_TABLE",
             "REMEDIATION_STEPS",
             "COVERAGE_GAPS",
             "METHOD_AND_SOURCES",
+            "ACRONYM_GLOSSARY",
             "SOURCE_IDENTITY",
         ):
             expected_count = 2 if slot == "REPORT_TITLE" else 1
             self.assertEqual(template.count("{{" + slot + "}}"), expected_count)
+
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Acronym glossary", skill)
+        self.assertIn("Define only abbreviations used in the report", skill)
+        for required in (
+            "Assessment scope and coverage",
+            "selected versus exported",
+            "Datacenter names must not replace cluster names",
+            "same scope filter",
+        ):
+            self.assertIn(required, skill)
 
     def test_hygiene_requires_vendor_lifecycle_research(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -281,6 +296,26 @@ class SkillContractTests(unittest.TestCase):
         for entity in ("migration_method", "migration_finding", "target_node"):
             self.assertIn(f"`{entity}`", querying)
         self.assertNotIn("each detection's `lenses`", skill)
+
+    def test_shared_cloud_sizing_policy_is_aggressive_and_explicit(self):
+        common = (ROOT / "references" / "hcx_common.md").read_text(encoding="utf-8")
+        ocvs = (ROOT / "references" / "hcx_ocvs.md").read_text(encoding="utf-8")
+
+        for required in (
+            "powered-on, non-template VMs",
+            "4:1 configured-vCPU-to-configured-physical-core ratio",
+            "0% growth uplift",
+            "one additional compute host for N+1",
+            "Memory is not a binding host-count constraint",
+            "powered-off VMs separately",
+            "Do not use a ratio above 4:1",
+        ):
+            self.assertIn(required, common)
+        self.assertIn("shared default compute-sizing policy", ocvs)
+        self.assertNotIn(
+            "Include N+1/HA reserve, management workload overhead, growth",
+            ocvs,
+        )
 
     def test_public_readme_mentions_avs_and_gcve_migration_analysis(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

@@ -92,7 +92,7 @@ Translate the user's wording into the CLI's structured fields and filters accord
 
 For an estate-wide VCF licensing estimate, query `vcf_license_summary`. If the user supplies verified raw vSAN capacity, pass it with `--vsan-raw-tib`; otherwise preserve the result's vSAN evidence label and caveat. Use `vcf_license` for per-host or per-cluster workings and `license` for sanitized current assignments.
 
-For migration questions, query `migration_method` for exact VM/method outcomes, `migration_finding` for affected workloads and reasons, and `target_node` for the dated AVS or GCVE node catalog. Filter by `target=ocvs|avs|gcve`. Always retain the screening-not-validation warning.
+For migration questions, query `migration_method` for exact VM/method outcomes, `migration_finding` for affected workloads and reasons, and `target_node` for the dated OCVS, AVS, or GCVE node catalog. Filter by `target=ocvs|avs|gcve`. Use `configured_physical_cores` for usable compute capacity, but always use `silicon_cores` and `vcf_licensable_cores` for portable-VCF licensing. Never reduce the VCF count because a provider exposes or enables only part of the processor. Always retain the screening-not-validation warning.
 
 ## Interpret the selected lens
 
@@ -107,6 +107,7 @@ For migration questions, query `migration_method` for exact VM/method outcomes, 
 5. Do not claim that RVTools alone proves migration or VCF readiness. Require HCX Validate, HCL/BOM checks, target design validation, and performance history where applicable.
 6. Re-verify time-sensitive product versions, node or host types, compatibility, licensing, regional availability, and limits against current Oracle, Microsoft, Google, or Broadcom primary documentation when those details affect the conclusion.
 7. For the hygiene lens, research every distinct nonblank host vendor/model against current primary vendor lifecycle sources. Record the exact matched scope and as-of date; never equate End-of-Sale with end of support. Report missing vendor/model data or an unverified model match as a coverage gap.
+8. For OCVS, AVS, or GCVE sizing, calculate workload fit from configured capacity and calculate VCF licensing from full physical silicon. Include the resulting VCF-core obligation when comparing or recommending node types, including reduced-core and storage-only variants. Withhold the licensing recommendation if the full silicon count cannot be verified from current provider and Broadcom documentation.
 
 ## Produce the report
 
@@ -119,16 +120,24 @@ Honor the requested format. If none is stated:
 Use this information order:
 
 1. Executive assessment and confidence.
-2. Inventory and capacity snapshot.
-3. Findings by severity with affected counts, safe examples, impact, and next action.
-4. Lens-specific readiness or migration-profile implications.
-5. Prioritized remediation plan: before design, before pilot, before wave, after move.
-6. Coverage gaps and additional evidence required.
-7. Method, thresholds, assumptions, source workbook hash, and authoritative source links.
+2. Assessment scope and coverage.
+3. Inventory and capacity snapshot.
+4. Findings by severity with affected counts, safe examples, impact, and next action.
+5. Lens-specific readiness or migration-profile implications.
+6. Prioritized remediation plan: before design, before pilot, before wave, after move.
+7. Coverage gaps and additional evidence required.
+8. Method, thresholds, assumptions, source workbook hash, and authoritative source links.
+9. Acronym glossary.
+
+In **Assessment scope and coverage**, state whether the report covers the full exported estate or a filtered selection. Show selected versus exported counts for vCenters, datacenters, clusters, hosts, workload VMs, powered-on VMs, and templates when those fields are available. Name every selected vCenter and datacenter, and list cluster names when ten or fewer are selected; otherwise give the count and a bounded appendix. Datacenter names must not replace cluster names when the user selected individual clusters.
+
+Establish the filter before calculating any result. Apply the same scope filter to inventory, sizing, migration methods, findings, remediation counts, and licensing. Explicitly list excluded clusters or the exclusion rule. If an entity cannot be attributed to the selection because its RVTools relationship field is missing, omit the scoped total and report a coverage gap. When no filter was requested, say “full exported estate”; do not imply that one workbook necessarily represents the customer's entire VMware environment.
 
 For HTML, keep it self-contained with no remote scripts, fonts, analytics, or data calls. Replace the template placeholders, remove unused sections, escape source-derived strings, and avoid embedding the full parser JSON.
 
 For Markdown, use compact tables only where they improve comparison. Write exact affected counts and label truncated example lists.
+
+End assessment reports with a concise acronym glossary. Define only abbreviations used in the report, including product names and migration methods such as HCX and RAV. Describe HCX as the VMware workload-mobility and network-extension platform; do not force an obsolete product-name expansion. Spell out an acronym on first use where that improves readability, even when it also appears in the glossary.
 
 ## Quality checks
 
@@ -145,5 +154,8 @@ Before finishing:
 - Confirm a hygiene assessment with `vHost` data covers every distinct vendor/model with an authoritative lifecycle status or an explicit coverage gap, and reports Hyper-Threading availability versus active state without treating unknown as false.
 - Confirm recommendations do not imply changes were executed.
 - Confirm a VCF licensing result uses physical cores with the per-CPU minimum, states the included host scope, and withholds the estate total when CPU topology is incomplete.
+- Confirm every cloud-node recommendation distinguishes configured compute from full physical silicon and uses `vcf_licensable_cores`, not configured or disabled cores, for VCF licensing.
 - Confirm a vSAN result distinguishes verified raw TiB from an RVTools datastore-capacity proxy and reports either add-on TiB or surplus TiB, never both as positive.
+- Confirm scope coverage shows selected versus exported infrastructure and that every reported total uses the same scope filter.
+- Confirm the acronym glossary defines every non-obvious abbreviation used in the report and contains no unused entries.
 - Open or render the HTML artifact and fix clipped, unreadable, or empty sections.
