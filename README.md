@@ -102,7 +102,7 @@ The release ZIP is built only after the tagged commit passes CI. It contains the
 ### Codex
 
 ```bash
-codex plugin marketplace add KimTholstorf/rvtools-skill --ref main
+codex plugin marketplace add KimTholstorf/rvtools-skill
 codex plugin add rvtools-analyzer@rvtools-analyzer
 ```
 
