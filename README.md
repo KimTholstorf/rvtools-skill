@@ -9,7 +9,7 @@
 - Estimate required VCF cores and included, additional, or surplus vSAN capacity.
 - Run vSphere health checks, including hardware lifecycle and support status.
 - Assess each workload for migration to OCVS, AVS, or GCVE using HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, or Cold Migration.
-- Size the target cluster from powered-on workloads, including N+1 capacity and VCF licensing based on each node’s full physical silicon (as per updated Broadcom silicon guidance of June 17, 2026. [Broadcom KB 313548](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html)).
+- Size the target cluster from powered-on workloads, including N+1 capacity and VCF licensing based on each node’s full physical silicon (as per updated core-counting guidance of June 17, 2026. [Broadcom KB 313548](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html)).
 - Explore OCVS shapes, AVS hosts, and GCVE nodes through normal questions.
 - Create self-contained HTML and Markdown reports.
 
@@ -27,11 +27,17 @@ You do not need to run a full assessment to explore an RVTools export. Ask norma
 
 The first question creates a private local index that can be reused for the same workbook, making later questions faster. The index contains only approved inventory fields and leaves out annotations, snapshot descriptions, credentials, licence keys, serial numbers, and other sensitive free text. Straightforward questions get a direct answer; when you ask what the data means or what to do next, the skill applies the relevant health, migration, licensing, or sizing guidance.
 
+[See conversational examples here](https://github.com/KimTholstorf/rvtools-skill#examples)
+
 ## vSphere health checks
 
 The health check reviews hosts, VMs, datastores, networks, snapshots, VMware Tools, and virtual hardware for operational debt or configuration risks. It also reports CPU and memory overcommit for powered-on workloads by cluster and across the exported estate. Powered-off demand is shown separately, and missing RVTools sheets or fields are called out so gaps are not mistaken for a clean result.
 
 Where host data is available, the report covers server and CPU models, BIOS and ESXi versions, and whether Hyper-Threading is available and active. Each distinct server model is checked against current vendor lifecycle sources. If an exact model match cannot be verified, the report records a coverage gap instead of guessing. Health thresholds are screening rules, not a substitute for performance history or a detailed platform review.
+
+```bash
+Run a vSphere health check on this RVTools export and create an HTML report.
+```
 
 ## Cloud VMware migration assessments
 
@@ -39,11 +45,19 @@ For OCVS, AVS, and GCVE assessments, the skill checks every non-template VM agai
 
 The assessment also covers provider-specific planning details such as target CPU compatibility, AVS host types, GCVE node families, storage architecture, regional availability, networking, and licensing checks. These catalogs are dated snapshots of vendor documentation. The skill checks current primary sources before using them in a customer design.
 
+```bash
+Assess this RVTools export for an OCVS migration using HCX and create an HTML report.
+```
+
 ## Cloud VMware sizing
 
 Sizing for OCVS, AVS, and GCVE starts with powered-on, non-template VMs and reports powered-off workloads as excluded demand. The default model uses a 4:1 vCPU-to-physical-core ratio, no generic growth allowance, accepts aggregate memory overcommit, and adds one host for N+1 failure and patching capacity. The result shows the workload host count, N+1 host, memory ratio, largest-VM fit, and the assumptions behind the recommendation.
 
 Workload capacity is calculated from the cores made available by the selected node, while portable VCF licensing counts every physical silicon core in each purchased host. A reduced-core cloud configuration therefore does not reduce the VCF core count. This follows Broadcom's [core-counting guidance](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html). Storage is kept separate because policy overhead, rebuild reserve, free space, and migration staging still need a design review.
+
+```bash
+Size an OCVS target cluster for this RVTools export and create an HTML report with the assumptions and VCF licensing estimate.
+```
 
 ## Requirements
 
@@ -139,15 +153,19 @@ Short factual questions get a direct answer in chat. A full assessment creates a
 
 ## Data handling and privacy
 
-An RVTools export can describe nearly every corner of a VMware environment, so treat it like sensitive infrastructure documentation. The skill tells the agent to:
+An RVTools export can describe nearly every corner of a VMware environment, so treat it like sensitive infrastructure documentation. When Codex, Claude Code, or another local agent can access the filesystem, provide the workbook's local path instead of attaching it. This avoids creating a separate uploaded copy and lets the skill work with the file where it already resides.
 
-- Keep the workbook, parser output, and SQLite query index local.
-- Preserve the source workbook and write reports separately.
-- Exclude annotations, snapshot descriptions, credentials, license keys, and serial numbers from the conversational index.
-- Return bounded examples rather than full infrastructure inventories.
-- Use only vendor and model identifiers—not the raw workbook—when researching hardware lifecycle status.
+Using a local path does not make the session fully offline. The AI platform may still process the question, selected findings, bounded query results, and report text. If the chat cannot access local files and the workbook must be attached, the platform's file-handling and retention terms apply. Use an account and data-control policy approved for the information in the export.
 
-The parser and query scripts do not contain code that uploads the workbook. If you attach the file to Claude or ChatGPT, the platform's own file-handling and retention terms still apply. On first use, the launcher may contact the configured Python package index to download its pinned dependencies. Hardware lifecycle and compatibility checks may also consult public vendor documentation, but they use vendor and model identifiers rather than the workbook itself.
+The skill limits exposure by:
+
+- Reading the source in place, preserving it, and writing reports separately.
+- Keeping parser output and the private SQLite query index on the local filesystem.
+- Leaving annotations, snapshot descriptions, credentials, licence keys, serial numbers, and other sensitive free text out of the conversational index.
+- Returning counts and bounded examples instead of dumping full infrastructure inventories into the conversation.
+- Using only the minimum vendor and model identifiers needed for public hardware lifecycle research, never the raw workbook.
+
+The parser and query scripts contain no workbook-upload code. Network access may still be used on first run to download pinned Python dependencies from the configured package index. Lifecycle, compatibility, and current product checks may consult public vendor documentation using only the identifiers needed for the lookup.
 
 ## Scope and limitations
 
