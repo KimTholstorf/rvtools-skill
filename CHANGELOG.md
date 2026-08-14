@@ -2,6 +2,18 @@
 
 This file tracks each RVTools Analyzer release.
 
+## [0.4.2] - 2026-08-14
+
+### Added
+
+- Health checks and cloud migration reports now include guest operating-system lifecycle findings based on current vendor sources.
+- Conversational questions can identify VMs that are supported, in extended support, out of support, or too broadly labelled to classify safely.
+
+### Changed
+
+- Guest OS lifecycle findings are kept separate from HCX compatibility, so an old operating system is highlighted without being reported as a migration-method blocker.
+- The README now calls out guest OS lifecycle checks and includes a matching example question.
+
 ## [0.4.1] - 2026-08-11
 
 ### Added
@@ -96,6 +108,7 @@ This file tracks each RVTools Analyzer release.
 - Plugin marketplace packaging for Claude Code and Codex.
 - The short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.4.2]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.2.0...v0.3.0
