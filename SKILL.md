@@ -1,6 +1,6 @@
 ---
 name: rvtools-analyzer
-description: Analyze and conversationally query VMware RVTools multi-sheet .xlsx exports, and produce evidence-based assessments for Oracle Cloud VMware Solution (OCVS), Azure VMware Solution (AVS), or Google Cloud VMware Engine (GCVE) migrations with VMware HCX, on-premises VMware Cloud Foundation (VCF) re-platforming, or general vSphere health, hardware lifecycle, security, licensing, and capacity. Use when an agent receives an RVTools export or is asked factual inventory questions, VM/host/cluster counts, server vendor/model, CPU or Hyper-Threading questions, guest OS questions, filtered or grouped inventory queries, migration blockers, HCX readiness, VCF readiness, snapshot or disk risk, network configuration, overcommit, VM sprawl, end-of-sale/support status, or infrastructure health from RVTools data.
+description: Analyze and conversationally query VMware RVTools multi-sheet .xlsx exports, and produce evidence-based assessments for Oracle Cloud VMware Solution (OCVS), Azure VMware Solution (AVS), or Google Cloud VMware Engine (GCVE) migrations with VMware HCX, on-premises VMware Cloud Foundation (VCF) re-platforming, or general vSphere health, hardware lifecycle, guest operating-system lifecycle, security, licensing, and capacity. Use when an agent receives an RVTools export or is asked factual inventory questions, VM/host/cluster counts, server vendor/model, CPU or Hyper-Threading questions, guest OS or OS support questions, filtered or grouped inventory queries, migration blockers, HCX readiness, VCF readiness, snapshot or disk risk, network configuration, overcommit, VM sprawl, end-of-sale/support status, or infrastructure health from RVTools data.
 ---
 
 # RVTools Analyzer
@@ -19,6 +19,8 @@ Reuse the same workbook and local query index for conversational follow-ups. Res
 
 For current VMware licence inventory or VCF/vSAN subscription-capacity questions, use the `license`, `vcf_license`, and `vcf_license_summary` query entities described in [references/querying.md](references/querying.md), then apply [references/vcf_onprem.md](references/vcf_onprem.md). Never reproduce a licence key.
 
+For conversational questions about unsupported, end-of-life, or extended-support guest operating systems, query the distinct VM `guest_os` values and follow [references/guest_os_lifecycle.md](references/guest_os_lifecycle.md). Do not answer from a static lifecycle table.
+
 ## Select the lens
 
 Map the user's intent to exactly one lens unless they explicitly request a comparison or combined assessment:
@@ -31,6 +33,8 @@ Map the user's intent to exactly one lens unless they explicitly request a compa
 - Health check, hygiene, capacity, sprawl, snapshot debt, hardware lifecycle, security posture, licensing exposure, or general environment review: use `hygiene` and read [references/hygiene.md](references/hygiene.md). For every hygiene assessment with `vHost` data, also read and follow [references/hardware_lifecycle.md](references/hardware_lifecycle.md).
 
 Ask which lens to use when the intent is ambiguous. Do not run every lens or cloud target by default. For an explicitly combined request, keep each lens's conclusions separate and deduplicate shared findings.
+
+For every hygiene assessment or OCVS, AVS, or GCVE migration report with `vInfo` data, also read and follow [references/guest_os_lifecycle.md](references/guest_os_lifecycle.md). Keep guest-OS lifecycle separate from deterministic HCX method screening.
 
 Treat a future lens as another file under `references/`. Let that reference declare which parser detection IDs or categories it interprets; do not duplicate parsing logic or require a separate workbook pass.
 
@@ -107,7 +111,8 @@ For migration questions, query `migration_method` for exact VM/method outcomes, 
 5. Do not claim that RVTools alone proves migration or VCF readiness. Require HCX Validate, HCL/BOM checks, target design validation, and performance history where applicable.
 6. Re-verify time-sensitive product versions, node or host types, compatibility, licensing, regional availability, and limits against current Oracle, Microsoft, Google, or Broadcom primary documentation when those details affect the conclusion.
 7. For the hygiene lens, research every distinct nonblank host vendor/model against current primary vendor lifecycle sources. Record the exact matched scope and as-of date; never equate End-of-Sale with end of support. Report missing vendor/model data or an unverified model match as a coverage gap.
-8. For OCVS, AVS, or GCVE sizing, calculate workload fit from configured capacity and calculate VCF licensing from full physical silicon. Include the resulting VCF-core obligation when comparing or recommending node types, including reduced-core and storage-only variants. Withhold the licensing recommendation if the full silicon count cannot be verified from current provider and Broadcom documentation.
+8. For guest-OS lifecycle, research exact in-scope releases against current primary-vendor sources. Treat extended-support availability as distinct from customer entitlement, keep ambiguous versions unknown, and never change an HCX method result because of OS lifecycle.
+9. For OCVS, AVS, or GCVE sizing, calculate workload fit from configured capacity and calculate VCF licensing from full physical silicon. Include the resulting VCF-core obligation when comparing or recommending node types, including reduced-core and storage-only variants. Withhold the licensing recommendation if the full silicon count cannot be verified from current provider and Broadcom documentation.
 
 ## Produce the report
 
@@ -152,6 +157,7 @@ Before finishing:
 - Confirm warning and coverage-gap sections reflect missing sheets.
 - Confirm thresholds are labeled vendor-backed or project heuristic according to the lens reference.
 - Confirm a hygiene assessment with `vHost` data covers every distinct vendor/model with an authoritative lifecycle status or an explicit coverage gap, and reports Hyper-Threading availability versus active state without treating unknown as false.
+- Confirm health and cloud migration reports classify every sufficiently specific in-scope guest OS using the shared lifecycle statuses, cite current primary-vendor sources, and keep ambiguous releases unknown. Confirm guest-OS lifecycle did not alter any HCX method status.
 - Confirm recommendations do not imply changes were executed.
 - Confirm a VCF licensing result uses physical cores with the per-CPU minimum, states the included host scope, and withholds the estate total when CPU topology is incomplete.
 - Confirm every cloud-node recommendation distinguishes configured compute from full physical silicon and uses `vcf_licensable_cores`, not configured or disabled cores, for VCF licensing.

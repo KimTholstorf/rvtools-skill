@@ -7,7 +7,7 @@
 - Review VMware Cloud Foundation readiness.
 - Compare HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, and Cold Migration per VM.
 - Estimate required VCF cores and included, additional, or surplus vSAN capacity.
-- Run vSphere health checks, including hardware lifecycle and support status.
+- Run vSphere health checks, including host hardware and guest operating-system lifecycle and support status.
 - Assess each workload for migration to OCVS, AVS, or GCVE using HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, or Cold Migration.
 - Size the target cluster from powered-on workloads, including N+1 capacity and VCF licensing based on each node’s full physical silicon (as per updated core-counting guidance of June 17, 2026. [Broadcom KB 313548](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html)).
 - Explore OCVS shapes, AVS hosts, and GCVE nodes through normal questions.
@@ -140,6 +140,7 @@ Attach an RVTools `.xlsx` export, or provide its local path, and ask something l
 - “How many Linux VMs run in each cluster?”
 - “What are the CPU and memory overcommit ratios for cluster Production?”
 - “List the host vendors, models, CPU models, and Hyper-Threading state.”
+- “Which VMs run guest operating systems that are out of support or in extended support?”
 - “What VMware licences are recorded in this export? Don’t show the licence keys.”
 - “How many VCF cores does this estate need, and will it need extra vSAN capacity?”
 - “Run a vSphere health check and create an HTML report.”

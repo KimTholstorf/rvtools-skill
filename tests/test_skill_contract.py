@@ -187,6 +187,35 @@ class SkillContractTests(unittest.TestCase):
         self.assertNotIn("python3 scripts/parse_rvtools.py", skill)
         self.assertNotIn("python3 scripts/query_rvtools.py", skill)
 
+    def test_guest_os_lifecycle_is_shared_context_not_an_hcx_blocker(self):
+        lifecycle_path = ROOT / "references" / "guest_os_lifecycle.md"
+        self.assertTrue(lifecycle_path.is_file())
+
+        lifecycle = lifecycle_path.read_text(encoding="utf-8")
+        for status in (
+            "`vendor_supported`",
+            "`vendor_extended_support`",
+            "`vendor_out_of_support`",
+            "`unknown`",
+        ):
+            self.assertIn(status, lifecycle)
+        self.assertIn("primary vendor", lifecycle)
+        self.assertIn("extended-support entitlement", lifecycle)
+        self.assertIn("must not change HCX migration-method statuses", lifecycle)
+        self.assertIn("health-check report", lifecycle)
+        self.assertIn("cloud migration report", lifecycle)
+        self.assertIn("`guest_os`", lifecycle)
+
+        root_skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "[references/guest_os_lifecycle.md](references/guest_os_lifecycle.md)",
+            root_skill,
+        )
+        packaged_skill = (ROOT / "skills" / "rvtools-analyzer" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("guest OS lifecycle", packaged_skill)
+
     def test_report_template_uses_flat_oracle_inspired_design_system(self):
         template = (ROOT / "assets" / "report-template.html").read_text(
             encoding="utf-8"

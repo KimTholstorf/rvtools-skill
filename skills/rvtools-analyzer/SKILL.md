@@ -1,6 +1,6 @@
 ---
 name: rvtools-analyzer
-description: Analyze and query VMware RVTools XLSX exports for OCVS, AVS, or GCVE migration with HCX, VCF readiness, vSphere health, hardware lifecycle, overcommit, licensing, capacity, and inventory questions.
+description: Analyze and query VMware RVTools XLSX exports for OCVS, AVS, or GCVE migration with HCX, VCF readiness, vSphere health, hardware and guest OS lifecycle, overcommit, licensing, capacity, and inventory questions.
 ---
 
 # RVTools Analyzer
