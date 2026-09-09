@@ -36,6 +36,8 @@ Ask which lens to use when the intent is ambiguous. Do not run every lens or clo
 
 For every hygiene assessment or OCVS, AVS, or GCVE migration report with `vInfo` data, also read and follow [references/guest_os_lifecycle.md](references/guest_os_lifecycle.md). Keep guest-OS lifecycle separate from deterministic HCX method screening.
 
+For an OCVS, AVS, or GCVE sizing report with more than one source cluster in scope, inspect the scope first and ask the user to choose consolidated or source-aligned target clusters unless their request already makes that choice. Do not generate the sizing report while this material design input is unresolved. Follow the topology definitions and calculation rules in [references/hcx_common.md](references/hcx_common.md). A single source cluster does not require this question.
+
 Treat a future lens as another file under `references/`. Let that reference declare which parser detection IDs or categories it interprets; do not duplicate parsing logic or require a separate workbook pass.
 
 ## Protect the export
@@ -113,6 +115,7 @@ For migration questions, query `migration_method` for exact VM/method outcomes, 
 7. For the hygiene lens, research every distinct nonblank host vendor/model against current primary vendor lifecycle sources. Record the exact matched scope and as-of date; never equate End-of-Sale with end of support. Report missing vendor/model data or an unverified model match as a coverage gap.
 8. For guest-OS lifecycle, research exact in-scope releases against current primary-vendor sources. Treat extended-support availability as distinct from customer entitlement, keep ambiguous versions unknown, and never change an HCX method result because of OS lifecycle.
 9. For OCVS, AVS, or GCVE sizing, calculate workload fit from configured capacity and calculate VCF licensing from full physical silicon. Include the resulting VCF-core obligation when comparing or recommending node types, including reduced-core and storage-only variants. Withhold the licensing recommendation if the full silicon count cannot be verified from current provider and Broadcom documentation.
+10. For multi-cluster sizing, make the user's topology choice the primary sizing recommendation and include a brief reverse-topology comparison. Never present consolidated sizing as the assumed default.
 
 ## Produce the report
 
@@ -129,10 +132,11 @@ Use this information order:
 3. Inventory and capacity snapshot.
 4. Findings by severity with affected counts, safe examples, impact, and next action.
 5. Lens-specific readiness or migration-profile implications.
-6. Prioritized remediation plan: before design, before pilot, before wave, after move.
-7. Coverage gaps and additional evidence required.
-8. Method, thresholds, assumptions, source workbook hash, and authoritative source links.
-9. Acronym glossary.
+6. For cloud sizing, the primary topology design and a concise reverse-topology comparison.
+7. Prioritized remediation plan: before design, before pilot, before wave, after move.
+8. Coverage gaps and additional evidence required.
+9. Method, thresholds, assumptions, source workbook hash, and authoritative source links.
+10. Acronym glossary.
 
 In **Assessment scope and coverage**, state whether the report covers the full exported estate or a filtered selection. Show selected versus exported counts for vCenters, datacenters, clusters, hosts, workload VMs, powered-on VMs, and templates when those fields are available. Name every selected vCenter and datacenter, and list cluster names when ten or fewer are selected; otherwise give the count and a bounded appendix. Datacenter names must not replace cluster names when the user selected individual clusters.
 
@@ -161,6 +165,7 @@ Before finishing:
 - Confirm recommendations do not imply changes were executed.
 - Confirm a VCF licensing result uses physical cores with the per-CPU minimum, states the included host scope, and withholds the estate total when CPU topology is incomplete.
 - Confirm every cloud-node recommendation distinguishes configured compute from full physical silicon and uses `vcf_licensable_cores`, not configured or disabled cores, for VCF licensing.
+- Confirm every multi-cluster cloud sizing report records the user's topology choice, shows the primary source-to-target cluster mapping, and includes the reverse-topology comparison using the same scope and assumptions.
 - Confirm a vSAN result distinguishes verified raw TiB from an RVTools datastore-capacity proxy and reports either add-on TiB or surplus TiB, never both as positive.
 - Confirm scope coverage shows selected versus exported infrastructure and that every reported total uses the same scope filter.
 - Confirm the acronym glossary defines every non-obvious abbreviation used in the report and contains no unused entries.

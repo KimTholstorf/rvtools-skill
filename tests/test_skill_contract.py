@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.4.2")
+        self.assertEqual(manifest["version"], "0.4.3")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -149,6 +149,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("## [0.4.3] - 2026-09-09", changelog)
         self.assertIn("## [0.4.2] - 2026-08-14", changelog)
         self.assertIn("## [0.4.1] - 2026-08-11", changelog)
         self.assertIn("## [0.4.0] - 2026-08-11", changelog)
@@ -349,6 +350,34 @@ class SkillContractTests(unittest.TestCase):
             "Include N+1/HA reserve, management workload overhead, growth",
             ocvs,
         )
+
+    def test_cloud_sizing_requires_a_cluster_topology_choice_and_compares_both(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        common = (ROOT / "references" / "hcx_common.md").read_text(encoding="utf-8")
+
+        for required in (
+            "Consolidated target",
+            "Source-aligned target",
+            "Do not begin a multi-cluster sizing report until the user chooses",
+            "same number of target workload clusters as source clusters",
+            "Apply the provider minimum independently to every target cluster",
+            "brief sizing overview of the unselected topology",
+            "target-cluster count",
+            "total purchased hosts",
+            "VCF-core obligation",
+        ):
+            self.assertIn(required, common)
+
+        self.assertIn(
+            "ask the user to choose consolidated or source-aligned target clusters",
+            skill,
+        )
+        self.assertIn("primary sizing recommendation", skill)
+        self.assertIn("reverse-topology comparison", skill)
+
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("asks whether to consolidate", readme)
+        self.assertIn("It does not assume consolidation", readme)
 
     def test_public_readme_mentions_avs_and_gcve_migration_analysis(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

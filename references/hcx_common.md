@@ -55,6 +55,19 @@ Use this policy for OCVS, AVS, and GCVE unless the user supplies different assum
 
 For every recommendation, show powered-on vCPU and memory demand, the assumed CPU ratio, workload-host count, N+1 host count, total host count, aggregate memory-overcommit ratio, excluded powered-off demand, and VCF licensing based on all physical silicon in every purchased host. Keep storage sizing separate: vSAN policy overhead, rebuild reserve, operational free space, and migration staging still apply even though compute sizing uses 0% growth uplift.
 
+## Target-cluster topology choice
+
+When more than one source cluster is in scope, present these two choices before producing a sizing report:
+
+- **Consolidated target**: combine compatible workloads from the selected source clusters into the fewest practical target workload clusters. Start with one target cluster, then split only when a provider limit or an explicit CPU-vendor, availability, security, compliance, storage, network, performance, or operational-isolation requirement makes another cluster necessary. Apply N+1 and the provider minimum to each resulting target cluster.
+- **Source-aligned target**: preserve the same number of target workload clusters as source clusters and size each source cluster independently. Do not pool spare capacity across clusters. Apply the provider minimum independently to every target cluster and add the N+1 reserve within each cluster.
+
+Do not begin a multi-cluster sizing report until the user chooses one of these topologies, unless their request already states the choice. Ask one concise question that includes the selected source-cluster count and explains that consolidation normally reduces duplicated minimum capacity and N+1 reserves, while source alignment preserves isolation boundaries. Do not silently treat a missing answer as approval to consolidate. Skip the question when only one source cluster is in scope because the two choices are equivalent.
+
+Make the chosen topology the primary sizing recommendation. Show its calculation per proposed target cluster, including the source-to-target cluster mapping. Then include a brief sizing overview of the unselected topology using the same workload scope, node specifications, CPU ratio, growth assumption, and storage assumptions wherever possible. Compare at least the target-cluster count, workload hosts, N+1 hosts, total purchased hosts, aggregate memory-overcommit ratio, and VCF-core obligation, and state the host and VCF-core delta. If a common node type is invalid for one topology, use the nearest valid alternative and make the difference explicit.
+
+Cluster boundaries in RVTools are evidence of the current layout, not proof that they must be preserved or can safely be removed. Keep application affinity, licensing, fault domains, compliance, security zones, network segmentation, storage policy, CPU compatibility, and operational ownership as validation gates. If same-named clusters from different vCenters cannot be distinguished reliably, stop the per-cluster calculation and request a disambiguated scope instead of combining them.
+
 ## Reporting
 
 Lead with exact per-method counts and named blockers, then show conditional treatments. Keep provider capacity facts separate from workload sizing. Include the target catalog review date and link to current vendor documentation because node types, regional availability, quotas, licensing, and limits change.

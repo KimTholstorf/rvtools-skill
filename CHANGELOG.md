@@ -2,6 +2,17 @@
 
 This file tracks each RVTools Analyzer release.
 
+## [0.4.3] - 2026-09-09
+
+### Added
+
+- Cloud sizing reports can now model either a consolidated target or one target cluster for each source cluster.
+- The selected design gets the full sizing analysis, while the alternative gets a short comparison of cluster count, purchased hosts, N+1 capacity, and VCF cores.
+
+### Changed
+
+- Multi-cluster sizing now asks which target layout the user wants instead of assuming that every source cluster should be consolidated.
+
 ## [0.4.2] - 2026-08-14
 
 ### Added
@@ -108,6 +119,7 @@ This file tracks each RVTools Analyzer release.
 - Plugin marketplace packaging for Claude Code and Codex.
 - The short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.4.3]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.3.0...v0.4.0

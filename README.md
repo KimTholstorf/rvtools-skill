@@ -53,6 +53,8 @@ Assess this RVTools export for an OCVS migration using HCX and create an HTML re
 
 Sizing for OCVS, AVS, and GCVE starts with powered-on, non-template VMs and reports powered-off workloads as excluded demand. The default model uses a 4:1 vCPU-to-physical-core ratio, no generic growth allowance, accepts aggregate memory overcommit, and adds one host for N+1 failure and patching capacity. The result shows the workload host count, N+1 host, memory ratio, largest-VM fit, and the assumptions behind the recommendation.
 
+If the scope contains several source clusters, the skill asks whether to consolidate them into fewer target clusters or keep one target cluster for each source cluster. It sizes the chosen layout in detail and adds a short comparison of the other option, including the difference in cluster count, purchased hosts, N+1 capacity, and VCF cores. It does not assume consolidation on the user's behalf.
+
 Workload capacity is calculated from the cores made available by the selected node, while portable VCF licensing counts every physical silicon core in each purchased host. A reduced-core cloud configuration therefore does not reduce the VCF core count. This follows Broadcom's [core-counting guidance](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html). Storage is kept separate because policy overhead, rebuild reserve, free space, and migration staging still need a design review.
 
 ```bash
