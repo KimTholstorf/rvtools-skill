@@ -2,6 +2,29 @@
 
 This file tracks each RVTools Analyzer release.
 
+## [0.5.0] - 2026-09-11
+
+### Added
+
+- A provider-neutral Python sizing engine shared by OCVS, AVS, and GCVE reports and conversational queries.
+- A recommended capacity policy covering all non-template workloads, 20% CPU and memory headroom, binding configured memory, one-host-loss capacity, and 25% provisioned-storage headroom.
+- An explicit active-only policy for leaner scenarios based on powered-on workloads, no generic compute headroom, and aggregate memory overcommit.
+- Conversational `sizing_summary` and `sizing_cluster` records for exact totals and per-cluster workings.
+- Deterministic node comparison that balances purchased-host count with full-silicon VCF cores and retains alternatives for review.
+- A target-profile interface for applying the same policy to a verified on-premises VCF hardware bill of materials.
+
+### Changed
+
+- Host counts now use independent normal-operation, one-host-loss, and provider-minimum constraints. A failure host is no longer added blindly to an already sufficient provider minimum.
+- OCVS sizing distinguishes the three-host unified-management minimum from the two-host standard-workload minimum.
+- Source-aligned sizing excludes and lists clusters with no hosts, and reports workloads that cannot be attributed safely instead of placing them in a target cluster.
+- Cloud migration parser output now includes deterministic sizing or asks for a topology choice when several source clusters are present.
+- The parser output schema is now version 3.0, and the local query-index schema is version 8.
+
+### Fixed
+
+- Repeated RVTools column names are preserved instead of overwriting one another, improving cluster attribution for workbook variants with duplicate headers.
+
 ## [0.4.3] - 2026-09-09
 
 ### Added
@@ -119,6 +142,7 @@ This file tracks each RVTools Analyzer release.
 - Plugin marketplace packaging for Claude Code and Codex.
 - The short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.5.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.0...v0.4.1

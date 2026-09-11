@@ -29,7 +29,7 @@ Map the user's intent to exactly one lens unless they explicitly request a compa
 - AVS or Azure VMware Solution: use `hcx_avs`; read [references/hcx_common.md](references/hcx_common.md), then [references/hcx_avs.md](references/hcx_avs.md).
 - GCVE or Google Cloud VMware Engine: use `hcx_gcve`; read [references/hcx_common.md](references/hcx_common.md), then [references/hcx_gcve.md](references/hcx_gcve.md).
 - HCX, RAV, vMotion, Bulk Migration, or cloud migration without a named target: ask which of OCVS, AVS, or GCVE is intended.
-- VMware Cloud Foundation, VCF, workload domain, management domain, convergence, import, or on-premises re-platforming: use `vcf_onprem` and read [references/vcf_onprem.md](references/vcf_onprem.md).
+- VMware Cloud Foundation, VCF, workload domain, management domain, convergence, import, or on-premises re-platforming: use `vcf_onprem` and read [references/vcf_onprem.md](references/vcf_onprem.md). For target-hardware sizing, also read [references/sizing.md](references/sizing.md) and require a verified VCF hardware profile.
 - Health check, hygiene, capacity, sprawl, snapshot debt, hardware lifecycle, security posture, licensing exposure, or general environment review: use `hygiene` and read [references/hygiene.md](references/hygiene.md). For every hygiene assessment with `vHost` data, also read and follow [references/hardware_lifecycle.md](references/hardware_lifecycle.md).
 
 Ask which lens to use when the intent is ambiguous. Do not run every lens or cloud target by default. For an explicitly combined request, keep each lens's conclusions separate and deduplicate shared findings.
@@ -37,6 +37,8 @@ Ask which lens to use when the intent is ambiguous. Do not run every lens or clo
 For every hygiene assessment or OCVS, AVS, or GCVE migration report with `vInfo` data, also read and follow [references/guest_os_lifecycle.md](references/guest_os_lifecycle.md). Keep guest-OS lifecycle separate from deterministic HCX method screening.
 
 For an OCVS, AVS, or GCVE sizing report with more than one source cluster in scope, inspect the scope first and ask the user to choose consolidated or source-aligned target clusters unless their request already makes that choice. Do not generate the sizing report while this material design input is unresolved. Follow the topology definitions and calculation rules in [references/hcx_common.md](references/hcx_common.md). A single source cluster does not require this question.
+
+For every cloud sizing request, also read [references/sizing.md](references/sizing.md). Use the deterministic Python result as the calculation record. The `recommended` policy is the baseline unless the user deliberately asks for `active_only` or supplies different assumptions.
 
 Treat a future lens as another file under `references/`. Let that reference declare which parser detection IDs or categories it interprets; do not duplicate parsing logic or require a separate workbook pass.
 
@@ -67,6 +69,15 @@ python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target avs --pr
 python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target gcve --pretty --output /safe/local/path/gcve-analysis.json
 ```
 
+For a sizing result, add the chosen topology. The recommended policy is applied by default:
+
+```bash
+python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target ocvs \
+  --sizing-topology source_aligned --pretty --output /safe/local/path/ocvs-sizing.json
+```
+
+Use `--sizing-policy active_only` only when the user deliberately selects the less conservative active-workload model. Use `--primary-source-cluster` when the primary or unified-management mapping is known.
+
 Use `--target-node` and `--target-region` only when the user has selected them. For OCVS, use `--target-cpu-vendor Intel|AMD` when known; otherwise retain the target CPU vendor manual gate.
 
 The script requires Python 3 and `openpyxl`. If `openpyxl` is unavailable, use an environment-provided Python runtime that already includes it or report the dependency clearly. Do not upload the workbook or substitute model-based spreadsheet reading for the deterministic pass.
@@ -80,6 +91,7 @@ The parser emits:
 - `facts`: power state, ESXi version, host vendor/model, CPU vendor/model, Hyper-Threading, and VM hardware distributions;
 - `detections`: provider-neutral source-health rule ID, severity, category, tags, count, and bounded safe examples;
 - `migration`: when `--target` is supplied, the target profile, exact per-VM/per-method screening, findings, manual gates, and dated vendor source catalog;
+- `sizing`: when `--target` is supplied, either the deterministic sizing result or a topology-selection prompt for a multi-cluster scope;
 - `warnings`: missing sheets and resulting coverage gaps.
 
 Stop and report an invalid-input error if `vInfo` is absent. Continue with explicit coverage limitations when optional sheets are missing.
@@ -100,6 +112,8 @@ For an estate-wide VCF licensing estimate, query `vcf_license_summary`. If the u
 
 For migration questions, query `migration_method` for exact VM/method outcomes, `migration_finding` for affected workloads and reasons, and `target_node` for the dated OCVS, AVS, or GCVE node catalog. Filter by `target=ocvs|avs|gcve`. Use `configured_physical_cores` for usable compute capacity, but always use `silicon_cores` and `vcf_licensable_cores` for portable-VCF licensing. Never reduce the VCF count because a provider exposes or enables only part of the processor. Always retain the screening-not-validation warning.
 
+For sizing questions, query `sizing_summary` for estate or topology totals and `sizing_cluster` for the per-cluster node, constraint floors, utilization, one-host-loss result, and VCF cores. Filter by target, policy, and topology. These records are precomputed by the same engine used by parser reports; do not recalculate them in prose.
+
 ## Interpret the selected lens
 
 1. For a migration lens, use the selected target's `migration` result as the method decision record. Use provider-neutral `detections` only as supporting health, capacity, security, or remediation evidence.
@@ -114,7 +128,7 @@ For migration questions, query `migration_method` for exact VM/method outcomes, 
 6. Re-verify time-sensitive product versions, node or host types, compatibility, licensing, regional availability, and limits against current Oracle, Microsoft, Google, or Broadcom primary documentation when those details affect the conclusion.
 7. For the hygiene lens, research every distinct nonblank host vendor/model against current primary vendor lifecycle sources. Record the exact matched scope and as-of date; never equate End-of-Sale with end of support. Report missing vendor/model data or an unverified model match as a coverage gap.
 8. For guest-OS lifecycle, research exact in-scope releases against current primary-vendor sources. Treat extended-support availability as distinct from customer entitlement, keep ambiguous versions unknown, and never change an HCX method result because of OS lifecycle.
-9. For OCVS, AVS, or GCVE sizing, calculate workload fit from configured capacity and calculate VCF licensing from full physical silicon. Include the resulting VCF-core obligation when comparing or recommending node types, including reduced-core and storage-only variants. Withhold the licensing recommendation if the full silicon count cannot be verified from current provider and Broadcom documentation.
+9. For OCVS, AVS, or GCVE sizing, use the deterministic `sizing` result. Calculate workload fit from configured capacity and VCF licensing from full physical silicon. Include the VCF-core obligation when comparing node types, including reduced-core and storage-only variants. Withhold the licensing recommendation if the full silicon count cannot be verified from current provider and Broadcom documentation.
 10. For multi-cluster sizing, make the user's topology choice the primary sizing recommendation and include a brief reverse-topology comparison. Never present consolidated sizing as the assumed default.
 
 ## Produce the report
@@ -165,6 +179,8 @@ Before finishing:
 - Confirm recommendations do not imply changes were executed.
 - Confirm a VCF licensing result uses physical cores with the per-CPU minimum, states the included host scope, and withholds the estate total when CPU topology is incomplete.
 - Confirm every cloud-node recommendation distinguishes configured compute from full physical silicon and uses `vcf_licensable_cores`, not configured or disabled cores, for VCF licensing.
+- Confirm every sizing report uses the deterministic engine result, names the selected policy, shows all binding host-count constraints, and does not add a failure host blindly to the provider minimum.
+- Confirm OCVS reports call the recommended profile the Oracle default sizing policy. Confirm AVS and GCVE reports call it the recommended sizing policy and do not attribute it to Oracle.
 - Confirm every multi-cluster cloud sizing report records the user's topology choice, shows the primary source-to-target cluster mapping, and includes the reverse-topology comparison using the same scope and assumptions.
 - Confirm a vSAN result distinguishes verified raw TiB from an RVTools datastore-capacity proxy and reports either add-on TiB or surplus TiB, never both as positive.
 - Confirm scope coverage shows selected versus exported infrastructure and that every reported total uses the same scope filter.

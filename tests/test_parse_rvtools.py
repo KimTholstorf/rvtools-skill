@@ -176,7 +176,7 @@ class ParseInventoryTests(unittest.TestCase):
     def test_extracts_normalized_inventory_and_capacity(self):
         result = PARSER.analyze_workbook(self.path)
 
-        self.assertEqual(result["schema_version"], "2.0")
+        self.assertEqual(result["schema_version"], "3.0")
         self.assertEqual(result["source"]["file"], self.path.name)
         self.assertEqual(result["source"]["rvtools_version"], "4.7.1")
         self.assertEqual(result["inventory"]["vms"], 2)
@@ -203,6 +203,26 @@ class ParseInventoryTests(unittest.TestCase):
         finally:
             if not close_spy.called:
                 workbook.close()
+
+    def test_preserves_duplicate_headers_and_prefers_the_last_populated_value(self):
+        duplicate_path = Path(self.tempdir.name) / "duplicate-headers.xlsx"
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = "vDisk"
+        worksheet.append(["VM", "Cluster", "Datacenter", "Cluster", "Host"])
+        worksheet.append(["vm-01", "custom-tag-value", "dc-01", "actual-cluster", "esx-01"])
+        workbook.save(duplicate_path)
+        workbook.close()
+
+        workbook = load_workbook(duplicate_path, read_only=True, data_only=True)
+        try:
+            row = PARSER._read_rows(workbook, "vDisk")[0]
+        finally:
+            workbook.close()
+
+        self.assertEqual(row["cluster"], "custom-tag-value")
+        self.assertEqual(row["cluster2"], "actual-cluster")
+        self.assertEqual(PARSER._value(row, "Cluster"), "actual-cluster")
 
     def test_extracts_host_hardware_lifecycle_and_hyperthreading_facts(self):
         result = PARSER.analyze_workbook(self.path)
@@ -522,7 +542,7 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertTrue(completed.stdout.strip())
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["schema_version"], "2.0")
+        self.assertEqual(payload["schema_version"], "3.0")
         self.assertTrue(all(len(item["examples"]) <= 1 for item in payload["detections"]))
 
     def test_adds_a_selected_target_migration_assessment(self):
@@ -530,8 +550,79 @@ class ParseInventoryTests(unittest.TestCase):
 
         self.assertEqual(result["migration"]["target"]["id"], "avs")
         self.assertEqual(result["migration"]["scope"]["workload_vms"], 2)
+        self.assertEqual(result["sizing"]["status"], "attention_required")
+        self.assertEqual(result["sizing"]["policy"]["id"], "recommended")
+        self.assertEqual(result["sizing"]["topology"]["id"], "consolidated")
+
+    def test_accepts_an_explicit_active_only_source_aligned_sizing_policy(self):
+        result = PARSER.analyze_workbook(
+            self.path,
+            target="ocvs",
+            sizing_policy="active_only",
+            sizing_topology="source_aligned",
+            primary_source_cluster="cluster-a",
+        )
+
+        self.assertEqual(result["sizing"]["status"], "complete")
+        self.assertEqual(result["sizing"]["policy"]["id"], "active_only")
+        self.assertEqual(result["sizing"]["topology"]["id"], "source_aligned")
+        self.assertEqual(result["sizing"]["topology"]["primary_target_cluster"], "cluster-a")
         by_vm = {row["vm"]: row for row in result["migration"]["vm_methods"]}
         self.assertEqual(by_vm["db-ora-01"]["methods"]["rav"]["status"], "blocked")
+
+    def test_multi_cluster_target_requires_a_topology_choice(self):
+        workbook = load_workbook(self.path)
+        workbook["vInfo"].append(
+            [
+                "app-02",
+                "poweredOn",
+                False,
+                2,
+                4096,
+                10240,
+                5120,
+                False,
+                "vmx-19",
+                "notConfigured",
+                "",
+                "Ubuntu Linux",
+                "cluster-b",
+                "esx-03",
+            ]
+        )
+        workbook["vHost"].append(
+            [
+                "esx-03",
+                "cluster-b",
+                "Intel Xeon Gold",
+                "8.0.3",
+                20,
+                30,
+                16,
+                65536,
+                "Dell Inc.",
+                "PowerEdge R760",
+                True,
+                True,
+                2,
+                8,
+                2800,
+                "Dell Inc.",
+                "1.0",
+                "2026-01-01",
+            ]
+        )
+        workbook.save(self.path)
+        workbook.close()
+
+        result = PARSER.analyze_workbook(self.path, target="ocvs")
+
+        self.assertEqual(result["sizing"]["status"], "topology_selection_required")
+        self.assertEqual(result["sizing"]["default_policy_id"], "recommended")
+        self.assertEqual(
+            result["sizing"]["available_topologies"],
+            ["consolidated", "source_aligned"],
+        )
 
     def test_cli_accepts_a_migration_target(self):
         completed = subprocess.run(

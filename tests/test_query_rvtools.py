@@ -286,6 +286,56 @@ class QueryRVToolsTests(unittest.TestCase):
 
         self.assertEqual(result["rows"], [{"count": 1, "sum_capacity_mib": 102400}])
 
+    def test_recovers_vm_cluster_from_a_related_sheet_with_duplicate_headers(self):
+        workbook = Workbook()
+        workbook.remove(workbook.active)
+        add_sheet(
+            workbook,
+            "vInfo",
+            ["VM", "Powerstate", "Template", "CPUs", "Memory"],
+            [["vm-without-cluster", "poweredOn", False, 2, 4096]],
+        )
+        add_sheet(
+            workbook,
+            "vHost",
+            ["Host", "Cluster", "# Cores", "# Memory"],
+            [["esx-01", "actual-cluster", 16, 65536]],
+        )
+        add_sheet(
+            workbook,
+            "vDisk",
+            ["VM", "Template", "Cluster", "Datacenter", "Cluster", "Capacity MiB"],
+            [["vm-without-cluster", False, "", "dc-01", "actual-cluster", 10240]],
+        )
+        workbook.save(self.path)
+        workbook.close()
+
+        vm = QUERY.run_query(
+            self.path,
+            {"entity": "vm", "select": ["vm", "cluster"]},
+        )
+        sizing = QUERY.run_query(
+            self.path,
+            {
+                "entity": "sizing_cluster",
+                "select": ["target_cluster", "vm_count"],
+                "filters": [
+                    "target=ocvs",
+                    "policy=recommended",
+                    "topology=source_aligned",
+                ],
+            },
+        )
+
+        self.assertEqual(
+            vm["rows"],
+            [{"vm": "vm-without-cluster", "cluster": "actual-cluster"}],
+        )
+        self.assertEqual(
+            sizing["rows"],
+            [{"target_cluster": "actual-cluster", "vm_count": 1}],
+        )
+
     def test_queries_cdrom_and_usb_device_inventory(self):
         self.assertIn("cdrom", QUERY.ENTITY_SCHEMAS)
         self.assertIn("usb", QUERY.ENTITY_SCHEMAS)
@@ -357,6 +407,57 @@ class QueryRVToolsTests(unittest.TestCase):
         )
         self.assertEqual(findings["rows"][0]["vm"], "windows-off")
         self.assertEqual(findings["rows"][0]["status"], "blocked")
+
+    def test_queries_deterministic_sizing_summary_and_cluster_workings(self):
+        summary = QUERY.run_query(
+            self.path,
+            {
+                "entity": "sizing_summary",
+                "select": [
+                    "target",
+                    "policy",
+                    "policy_name",
+                    "topology",
+                    "compute_vms",
+                    "total_hosts",
+                    "vcf_licensable_cores",
+                ],
+                "filters": [
+                    "target=ocvs",
+                    "policy=active_only",
+                    "topology=source_aligned",
+                ],
+            },
+        )
+        clusters = QUERY.run_query(
+            self.path,
+            {
+                "entity": "sizing_cluster",
+                "select": [
+                    "target_cluster",
+                    "role",
+                    "node_type",
+                    "provider_minimum_hosts",
+                    "failure_cpu_floor",
+                    "total_hosts",
+                    "one_host_loss_validated",
+                ],
+                "filters": [
+                    "target=ocvs",
+                    "policy=active_only",
+                    "topology=source_aligned",
+                    "target_cluster=cluster-a",
+                ],
+            },
+        )
+
+        self.assertEqual(summary["rows"][0]["policy_name"], "Active-only sizing policy")
+        self.assertEqual(summary["rows"][0]["compute_vms"], 2)
+        self.assertEqual(clusters["rows"][0]["role"], "unified_management")
+        self.assertEqual(clusters["rows"][0]["provider_minimum_hosts"], 3)
+        self.assertEqual(clusters["rows"][0]["total_hosts"], 3)
+        self.assertEqual(clusters["rows"][0]["one_host_loss_validated"], 1)
+        self.assertIn("configuration_only_sizing", {row["code"] for row in summary["warnings"]})
 
     def test_target_catalog_licenses_full_silicon_when_compute_cores_are_reduced(self):
         selected_ocvs = TARGETS.target_profile(

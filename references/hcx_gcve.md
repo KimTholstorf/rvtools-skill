@@ -20,4 +20,6 @@ GCVE nodes use Intel processors. An AMD source host blocks live CPU-state method
 
 Report ve2 CPU values with both the vendor's logical-processor label and the derived physical-core value. Do not compare source physical cores directly with GCVE logical processors without showing the conversion.
 
+Use the shared recommended policy and deterministic engine in [sizing.md](sizing.md) unless the user deliberately selects active-only sizing. Do not describe the shared assumptions as Oracle policy in a GCVE report. Use the three-node production minimum and 32-node standard-cluster maximum; single-node private clouds are temporary non-production environments and are not a production sizing target.
+
 Do not call a VM or wave GCVE-ready until the target project, region/zone, node type, IP plan, connectivity, storage design, license model, and HCX Validate result are confirmed.

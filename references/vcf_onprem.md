@@ -78,6 +78,7 @@ Broadcom notes that a VM cannot run on a platform that does not support its virt
 
 ### 5. Capacity and operational headroom
 
+- For a new target-hardware sizing request, read [sizing.md](sizing.md) and use its recommended policy unless the user deliberately selects active-only sizing. The shared engine requires a verified VCF hardware profile or bill of materials; it must not assume that the source host configuration is the target.
 - Use datastore capacity, provisioned, used, and free values to identify immediate pressure and thin-provisioning exposure.
 - Use host CPU and memory percentages as a point-in-time screening signal only.
 - Require sustained performance history, failure-domain reserve, maintenance-mode evacuation capacity, management overhead, storage policy overhead, and growth before sizing the target.

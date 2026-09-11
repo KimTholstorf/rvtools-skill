@@ -41,30 +41,22 @@ RVTools cannot establish these facts. Every report must list them as open eviden
 
 Broadcom notes that migration scale depends on storage, hosts, bandwidth, latency, packet loss, disk count, and churn. Do not turn an RVTools inventory total into a safe concurrency number.
 
-## Default compute-sizing policy
+## Deterministic sizing
 
-Use this policy for OCVS, AVS, and GCVE unless the user supplies different assumptions:
+For OCVS, AVS, or GCVE sizing, read and follow [sizing.md](sizing.md). Use the Python sizing result as the calculation record. The recommended policy is the default unless the user deliberately selects `active_only` or supplies their own assumptions.
 
-- Size only powered-on, non-template VMs. Report powered-off VMs separately as excluded demand that will require capacity if returned to service.
-- Use a 4:1 configured-vCPU-to-configured-physical-core ratio. Use the node's `configured_physical_cores`, not logical threads, enabled vCPUs, or full-silicon licensing cores, for workload fit.
-- Apply 0% growth uplift and no generic CPU, memory, or management-workload allowance. Add an allowance only when the user explicitly requests one.
-- Calculate workload hosts as `ceil(powered_on_vcpus / (configured_physical_cores_per_host * cpu_ratio))`, then add one additional compute host for N+1 failure and patching reserve. Apply a larger current provider minimum when required.
-- Memory is not a binding host-count constraint: accept aggregate configured-memory overcommit and report its ratio against the workload hosts available after reserving N+1. Do not add hosts solely because aggregate configured VM memory exceeds physical RAM.
-- Still reject a node type when the largest powered-on VM cannot fit on one host, and surface reservations, latency-sensitive workloads, NUMA constraints, or sustained memory pressure as validation gates.
-- Do not use a ratio above 4:1 from an RVTools snapshot alone. Use a higher ratio only when the user selects it or sustained performance evidence supports it; label the evidence and show the resulting ratio.
-
-For every recommendation, show powered-on vCPU and memory demand, the assumed CPU ratio, workload-host count, N+1 host count, total host count, aggregate memory-overcommit ratio, excluded powered-off demand, and VCF licensing based on all physical silicon in every purchased host. Keep storage sizing separate: vSAN policy overhead, rebuild reserve, operational free space, and migration staging still apply even though compute sizing uses 0% growth uplift.
+Do not add N+1 mechanically to a provider minimum. The engine tests normal-operation capacity, one-host-loss capacity, and the provider minimum independently, then uses the highest result.
 
 ## Target-cluster topology choice
 
 When more than one source cluster is in scope, present these two choices before producing a sizing report:
 
-- **Consolidated target**: combine compatible workloads from the selected source clusters into the fewest practical target workload clusters. Start with one target cluster, then split only when a provider limit or an explicit CPU-vendor, availability, security, compliance, storage, network, performance, or operational-isolation requirement makes another cluster necessary. Apply N+1 and the provider minimum to each resulting target cluster.
-- **Source-aligned target**: preserve the same number of target workload clusters as source clusters and size each source cluster independently. Do not pool spare capacity across clusters. Apply the provider minimum independently to every target cluster and add the N+1 reserve within each cluster.
+- **Consolidated target**: combine compatible workloads from the selected source clusters into the fewest practical target workload clusters. Start with one target cluster, then split only when a provider limit or an explicit CPU-vendor, availability, security, compliance, storage, network, performance, or operational-isolation requirement makes another cluster necessary.
+- **Source-aligned target**: preserve one target cluster for each populated source cluster and size each independently. Do not pool capacity across clusters. Exclude and list source clusters with no hosts.
 
 Do not begin a multi-cluster sizing report until the user chooses one of these topologies, unless their request already states the choice. Ask one concise question that includes the selected source-cluster count and explains that consolidation normally reduces duplicated minimum capacity and N+1 reserves, while source alignment preserves isolation boundaries. Do not silently treat a missing answer as approval to consolidate. Skip the question when only one source cluster is in scope because the two choices are equivalent.
 
-Make the chosen topology the primary sizing recommendation. Show its calculation per proposed target cluster, including the source-to-target cluster mapping. Then include a brief sizing overview of the unselected topology using the same workload scope, node specifications, CPU ratio, growth assumption, and storage assumptions wherever possible. Compare at least the target-cluster count, workload hosts, N+1 hosts, total purchased hosts, aggregate memory-overcommit ratio, and VCF-core obligation, and state the host and VCF-core delta. If a common node type is invalid for one topology, use the nearest valid alternative and make the difference explicit.
+Make the chosen topology the primary sizing recommendation. Show its calculation per proposed target cluster, including the source-to-target mapping. Then include a brief view of the unselected topology using the same policy. Compare at least target-cluster count, purchased hosts, one-host-loss capacity, storage demand, and VCF-core obligation.
 
 Cluster boundaries in RVTools are evidence of the current layout, not proof that they must be preserved or can safely be removed. Keep application affinity, licensing, fault domains, compliance, security zones, network segmentation, storage policy, CPU compatibility, and operational ownership as validation gates. If same-named clusters from different vCenters cannot be distinguished reliably, stop the per-cluster calculation and request a disambiguated scope instead of combining them.
 

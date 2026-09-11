@@ -9,7 +9,7 @@
 - Estimate required VCF cores and included, additional, or surplus vSAN capacity.
 - Run vSphere health checks, including host hardware and guest operating-system lifecycle and support status.
 - Assess each workload for migration to OCVS, AVS, or GCVE using HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, or Cold Migration.
-- Size the target cluster from powered-on workloads, including N+1 capacity and VCF licensing based on each node’s full physical silicon (as per updated core-counting guidance of June 17, 2026. [Broadcom KB 313548](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html)).
+- Size cloud VMware clusters with repeatable CPU, memory, failure-capacity, storage, and full-silicon VCF calculations (as per updated core-counting guidance of June 17, 2026. [Broadcom KB 313548](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html)).
 - Explore OCVS shapes, AVS hosts, and GCVE nodes through normal questions.
 - Create self-contained HTML and Markdown reports.
 
@@ -23,7 +23,7 @@ All three reports use fully synthetic data and contain no customer-derived inven
 
 ## Conversational inventory questions
 
-You do not need to run a full assessment to explore an RVTools export. Ask normal questions such as how many Linux VMs are powered on, which hosts have inactive Hyper-Threading, or what the CPU overcommit ratio is for a particular cluster. Follow-up questions can filter, group, count, or compare VMs, hosts, clusters, datastores, disks, networks, snapshots, licence inventory, migration results, and cloud node types. Answers state the filters and defaults used, and report unknown or missing data instead of filling in the gaps.
+You do not need to run a full assessment to explore an RVTools export. Ask normal questions such as how many Linux VMs are powered on, which hosts have inactive Hyper-Threading, or what the CPU overcommit ratio is for a particular cluster. Follow-up questions can filter, group, count, or compare VMs, hosts, clusters, datastores, disks, networks, snapshots, licence inventory, migration results, cloud node types, and sizing results. Answers state the filters and defaults used, and report unknown or missing data instead of filling in the gaps.
 
 The first question creates a private local index that can be reused for the same workbook, making later questions faster. The index contains only approved inventory fields and leaves out annotations, snapshot descriptions, credentials, licence keys, serial numbers, and other sensitive free text. Straightforward questions get a direct answer; when you ask what the data means or what to do next, the skill applies the relevant health, migration, licensing, or sizing guidance.
 
@@ -51,11 +51,19 @@ Assess this RVTools export for an OCVS migration using HCX and create an HTML re
 
 ## Cloud VMware sizing
 
-Sizing for OCVS, AVS, and GCVE starts with powered-on, non-template VMs and reports powered-off workloads as excluded demand. The default model uses a 4:1 vCPU-to-physical-core ratio, no generic growth allowance, accepts aggregate memory overcommit, and adds one host for N+1 failure and patching capacity. The result shows the workload host count, N+1 host, memory ratio, largest-VM fit, and the assumptions behind the recommendation.
+Sizing for OCVS, AVS, and GCVE now comes from a shared Python engine, so the same workbook and assumptions produce the same result in Claude and Codex. It calculates each cluster’s CPU, memory, one-host-loss capacity, provider minimum, storage demand, and full-silicon VCF requirement. The report shows which constraint set the final host count instead of simply adding an N+1 host to every cluster.
+
+The recommended policy includes all non-template workloads, regardless of power state. It uses a 4:1 vCPU-to-physical-core ratio, 20% CPU and memory headroom, configured memory as a sizing constraint, one-host-loss validation, and 25% headroom on provisioned storage. OCVS reports call this the Oracle default sizing policy. AVS and GCVE reports call it the recommended sizing policy.
+
+If you want a leaner estimate, ask for the active-only policy. That option sizes compute from powered-on, non-template VMs, applies no generic CPU or memory headroom, and allows aggregate memory overcommit. It still checks one-host-loss CPU capacity and whether the largest VM fits on a host. The selected policy is always named in the result.
 
 If the scope contains several source clusters, the skill asks whether to consolidate them into fewer target clusters or keep one target cluster for each source cluster. It sizes the chosen layout in detail and adds a short comparison of the other option, including the difference in cluster count, purchased hosts, N+1 capacity, and VCF cores. It does not assume consolidation on the user's behalf.
 
-Workload capacity is calculated from the cores made available by the selected node, while portable VCF licensing counts every physical silicon core in each purchased host. A reduced-core cloud configuration therefore does not reduce the VCF core count. This follows Broadcom's [core-counting guidance](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html). Storage is kept separate because policy overhead, rebuild reserve, free space, and migration staging still need a design review.
+When no node type is supplied, the engine compares valid choices and selects a practical trade-off between host count and full-silicon VCF cores. That is a planning recommendation, not a price quote. Region, availability, quota, workload performance, and commercial terms still need checking before purchase.
+
+Workload capacity is calculated from the cores made available by the selected node, while portable VCF licensing counts every physical silicon core in each purchased host. A reduced-core cloud configuration therefore does not reduce the VCF core count. This follows Broadcom's [core-counting guidance](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html). Storage remains a separate design decision because vSAN policy overhead, rebuild reserve, required free space, and migration staging affect usable capacity.
+
+The same calculation engine can size new on-premises VCF hardware once you provide a verified bill of materials. It will not assume that the current hosts are the right target design.
 
 ```bash
 Size an OCVS target cluster for this RVTools export and create an HTML report with the assumptions and VCF licensing estimate.
@@ -151,6 +159,8 @@ Attach an RVTools `.xlsx` export, or provide its local path, and ask something l
 - “How many VMs are eligible for Bulk Migration to AVS, grouped by cluster?”
 - “Assess this estate for Google Cloud VMware Engine (GCVE), and compare the suitable node types.”
 - “Show the CPU, memory, and raw storage for GCVE ve2-standard-128.”
+- “Size this estate for OCVS with the recommended policy and preserve the populated source clusters.”
+- “Show how the OCVS result changes with active-only sizing.”
 
 Short factual questions get a direct answer in chat. A full assessment creates an HTML report in an interactive session or a Markdown report in a file-oriented session, unless you ask for a different supported format.
 

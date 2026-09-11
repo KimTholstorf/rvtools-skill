@@ -118,13 +118,22 @@ class MigrationAssessmentTests(unittest.TestCase):
             gate for gate in avs["manual_gates"] if gate["id"] == "performance_sizing"
         )
         for required in (
-            "powered-on non-template VMs",
-            "4:1 CPU allocation ratio",
-            "memory overcommit",
-            "zero growth uplift",
-            "one-host N+1 reserve",
+            "deterministic sizing policy",
+            "normal-operation headroom",
+            "one-host-loss capacity",
+            "largest-VM fit",
         ):
             self.assertIn(required, sizing_gate["evidence"])
+        self.assertEqual(avs["target"]["sizing_constraints"]["primary_minimum_hosts"], 3)
+        self.assertEqual(avs["target"]["sizing_constraints"]["workload_minimum_hosts"], 3)
+
+        ocvs = self.migration.assess_migration(self.rows, "ocvs")
+        self.assertEqual(
+            ocvs["target"]["sizing_constraints"]["primary_minimum_hosts"], 3
+        )
+        self.assertEqual(
+            ocvs["target"]["sizing_constraints"]["workload_minimum_hosts"], 2
+        )
 
     def test_ocvs_can_apply_an_explicit_target_cpu_vendor(self):
         result = self.migration.assess_migration(

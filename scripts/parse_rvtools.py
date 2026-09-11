@@ -20,9 +20,15 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from rvtools.migration import TARGET_IDS, assess_migration
+from rvtools.sizing import (
+    DEFAULT_POLICY_ID,
+    POLICIES,
+    prepare_sizing_input,
+    size_environment,
+)
 
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "3.0"
 ANALYSIS_SHEETS = (
     "vHost",
     "vCluster",
@@ -103,7 +109,12 @@ def _read_rows(workbook, sheet_name):
     worksheet = workbook[sheet_name]
     rows = worksheet.iter_rows(values_only=True)
     headers = next(rows, ())
-    normalized = [_key(header) for header in headers]
+    normalized = []
+    occurrences = Counter()
+    for header in headers:
+        base = _key(header)
+        occurrences[base] += 1
+        normalized.append(base if occurrences[base] == 1 else f"{base}{occurrences[base]}")
     return [
         {normalized[index]: value for index, value in enumerate(row) if index < len(normalized) and normalized[index]}
         for row in rows
@@ -114,8 +125,14 @@ def _read_rows(workbook, sheet_name):
 def _value(row, *headers, default=None):
     for header in headers:
         key = _key(header)
-        if key in row and row[key] not in (None, ""):
-            return row[key]
+        matches = [
+            value
+            for candidate, value in row.items()
+            if (candidate == key or re.fullmatch(rf"{re.escape(key)}\d+", candidate))
+            and value not in (None, "")
+        ]
+        if matches:
+            return matches[-1]
     return default
 
 
@@ -933,6 +950,9 @@ def analyze_workbook(
     target_node=None,
     target_region=None,
     target_cpu_vendor=None,
+    sizing_policy=DEFAULT_POLICY_ID,
+    sizing_topology=None,
+    primary_source_cluster=None,
 ):
     """Return the normalized analysis payload for an RVTools workbook."""
     path = Path(path)
@@ -944,6 +964,15 @@ def analyze_workbook(
         rows = {name: _read_rows(workbook, name) for name in sheetnames}
     finally:
         workbook.close()
+    prepared_sizing_input = prepare_sizing_input(rows)
+    normalized_inventory = prepared_sizing_input["inventory"]
+    attributed_vm_rows = []
+    for row, normalized in zip(rows["vInfo"], normalized_inventory):
+        attributed = dict(row)
+        if normalized["cluster"] != "(unassigned)":
+            attributed["cluster"] = normalized["cluster"]
+        attributed_vm_rows.append(attributed)
+    rows["vInfo"] = attributed_vm_rows
     vm_rows = rows["vInfo"]
     workloads = [row for row in vm_rows if not _truthy(_value(row, "Template"))]
     templates = [row for row in vm_rows if _truthy(_value(row, "Template"))]
@@ -1036,6 +1065,38 @@ def analyze_workbook(
             target_region=target_region,
             target_cpu_vendor=target_cpu_vendor,
         )
+        populated_source_clusters = list(prepared_sizing_input["source_clusters"])
+        resolved_topology = sizing_topology
+        if resolved_topology is None and len(populated_source_clusters) <= 1:
+            resolved_topology = "consolidated"
+        if resolved_topology is None:
+            result["sizing"] = {
+                "status": "topology_selection_required",
+                "default_policy_id": sizing_policy,
+                "available_policy_ids": list(POLICIES),
+                "available_topologies": ["consolidated", "source_aligned"],
+                "source_clusters": populated_source_clusters,
+                "message": "Choose consolidated or source-aligned target clusters before generating the sizing result.",
+            }
+        else:
+            try:
+                result["sizing"] = size_environment(
+                    rows,
+                    target,
+                    policy_id=sizing_policy,
+                    topology=resolved_topology,
+                    target_node=target_node,
+                    target_cpu_vendor=target_cpu_vendor,
+                    primary_source_cluster=primary_source_cluster,
+                    prepared=prepared_sizing_input,
+                )
+            except ValueError as exc:
+                result["sizing"] = {
+                    "status": "unavailable",
+                    "default_policy_id": sizing_policy,
+                    "topology": resolved_topology,
+                    "message": str(exc),
+                }
     return result
 
 
@@ -1071,6 +1132,21 @@ def main(argv=None):
         choices=("Intel", "AMD"),
         help="Select the OCVS target CPU vendor for live-migration screening",
     )
+    parser.add_argument(
+        "--sizing-policy",
+        choices=tuple(POLICIES),
+        default=DEFAULT_POLICY_ID,
+        help="Capacity policy for target sizing (default: recommended)",
+    )
+    parser.add_argument(
+        "--sizing-topology",
+        choices=("consolidated", "source_aligned"),
+        help="Target cluster topology; required when multiple source clusters are in scope",
+    )
+    parser.add_argument(
+        "--primary-source-cluster",
+        help="Source cluster that should become the primary or unified-management target cluster",
+    )
     args = parser.parse_args(argv)
     if args.output and args.output.resolve() == args.workbook.resolve():
         parser.exit(2, "error: output path must not overwrite the source workbook\n")
@@ -1082,6 +1158,9 @@ def main(argv=None):
             target_node=args.target_node,
             target_region=args.target_region,
             target_cpu_vendor=args.target_cpu_vendor,
+            sizing_policy=args.sizing_policy,
+            sizing_topology=args.sizing_topology,
+            primary_source_cluster=args.primary_source_cluster,
         )
     except (FileNotFoundError, OSError, ValueError) as exc:
         parser.exit(2, f"error: {exc}\n")

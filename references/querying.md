@@ -47,6 +47,8 @@ Filters use `field=value` or `field__operator=value`. Supported operators are `e
 - `migration_method`: `target`, `vm`, `cluster`, `host`, `vcenter`, `method`, `status`, `reason_ids`
 - `migration_finding`: `target`, `finding_id`, `category`, `vm`, `cluster`, `host`, `vcenter`, `status`, `methods`, `summary`
 - `target_node`: `target`, `node_type`, `shape_series`, `physical_cores`, `configured_physical_cores`, `silicon_cores`, `vcf_licensable_cores`, `vcf_license_core_basis`, `logical_threads`, `cpu_vendor`, `cpu_model`, `memory_gib`, `raw_storage_tb`, `raw_storage_tb_osa`, `raw_storage_tb_esa`, `vsan_architecture`, `storage_only`, `availability`, `catalog_reviewed`
+- `sizing_summary`: `target`, `policy`, `policy_name`, `topology`, `status`, `source_cluster_count`, `target_cluster_count`, `workload_vms`, `compute_vms`, `powered_on_workload_vms`, `powered_off_or_other_workload_vms`, `templates`, `configured_vcpus`, `configured_memory_gib`, `provisioned_storage_tib`, `in_use_storage_tib`, `storage_required_tib`, `total_hosts`, `vcf_licensable_cores`
+- `sizing_cluster`: `target`, `policy`, `topology`, `status`, `target_cluster`, `role`, `source_clusters`, `node_type`, `selection_strategy`, `vm_count`, `vcpus`, `memory_gib`, `provisioned_storage_tib`, `in_use_storage_tib`, `storage_required_tib`, `provider_minimum_hosts`, `normal_cpu_floor`, `normal_memory_floor`, `failure_cpu_floor`, `failure_memory_floor`, `total_hosts`, `binding_constraints`, `normal_cpu_utilization_percent`, `normal_memory_utilization_percent`, `post_failure_cpu_utilization_percent`, `post_failure_memory_utilization_percent`, `one_host_loss_validated`, `vcf_licensable_cores`
 
 ## Defaults and answer discipline
 
@@ -63,6 +65,7 @@ Filters use `field=value` or `field__operator=value`. Supported operators are `e
 - Migration entities contain deterministic RVTools screening for OCVS, AVS, and GCVE. `eligible` is not proof of HCX compatibility. Repeat the returned `migration_screening_not_validation` warning and use the selected provider lens for recommendations.
 - The `target_node` catalog is dated. Recheck current provider specifications, region availability, quotas, and commercial terms before using it for a customer design.
 - For target sizing, use `configured_physical_cores` for usable compute capacity and workload fit. Use `silicon_cores` and `vcf_licensable_cores` for portable-VCF licensing, including reduced-core and storage-only node variants. Never substitute enabled cores, configured vCPUs, or logical threads for the full physical-silicon license count. If the full silicon count cannot be verified, report a licensing coverage gap instead of a license estimate. This follows Broadcom's current [core-counting guidance](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html).
+- The sizing entities are deterministic and precomputed for `recommended` and `active_only`, using both `consolidated` and `source_aligned` topologies. Filter all three dimensions explicitly. Use `recommended` unless the user deliberately selects active-only sizing. Do not add another N+1 host or apply new headroom after reading the result.
 
 ## Examples
 
@@ -141,6 +144,23 @@ Look up a current-in-catalog AVS host type:
 ```bash
 python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
   --entity target_node --filter target=avs --filter node_type=AV64
+```
+
+Read the recommended source-aligned OCVS sizing totals:
+
+```bash
+python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
+  --entity sizing_summary --filter target=ocvs \
+  --filter policy=recommended --filter topology=source_aligned
+```
+
+Show the constraint floors behind one AVS cluster recommendation:
+
+```bash
+python3 scripts/query_rvtools.py WORKBOOK --index INDEX \
+  --entity sizing_cluster --filter target=avs \
+  --filter policy=recommended --filter topology=source_aligned \
+  --filter target_cluster=CLUSTER_NAME
 ```
 
 List large powered-on VMs with bounded output:

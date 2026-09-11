@@ -1,7 +1,7 @@
 {
   "name": "rvtools",
-  "version": "0.4.3",
-  "description": "Analyze and conversationally query VMware RVTools exports for OCVS, AVS, GCVE, VCF, health, hardware lifecycle, and capacity.",
+  "version": "0.5.0",
+  "description": "Analyze and conversationally query VMware RVTools exports for cloud migration, deterministic sizing, VCF, and vSphere health.",
   "author": {
     "name": "Kim Tholstorf",
     "url": "https://github.com/KimTholstorf"

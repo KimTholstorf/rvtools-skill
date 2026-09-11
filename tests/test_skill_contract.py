@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.4.3")
+        self.assertEqual(manifest["version"], "0.5.0")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -136,6 +136,11 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("fully synthetic data", readme)
         self.assertNotIn("/Users/", readme)
 
+        contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+        self.assertIn("python -m unittest discover -s tests", contributing)
+        self.assertIn("scripts/rvtools/sizing.py", contributing)
+        self.assertIn("git push --atomic origin main", contributing)
+
         for sample_name in (
             "health-check-report-sample.pdf",
             "ocvs-migration-analysis-sample.pdf",
@@ -149,6 +154,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("## [0.5.0] - 2026-09-11", changelog)
         self.assertIn("## [0.4.3] - 2026-09-09", changelog)
         self.assertIn("## [0.4.2] - 2026-08-14", changelog)
         self.assertIn("## [0.4.1] - 2026-08-11", changelog)
@@ -322,34 +328,45 @@ class SkillContractTests(unittest.TestCase):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         querying = (ROOT / "references" / "querying.md").read_text(encoding="utf-8")
 
-        for reference in ("hcx_common.md", "hcx_ocvs.md", "hcx_avs.md", "hcx_gcve.md"):
+        for reference in (
+            "hcx_common.md",
+            "hcx_ocvs.md",
+            "hcx_avs.md",
+            "hcx_gcve.md",
+            "sizing.md",
+        ):
             self.assertTrue((ROOT / "references" / reference).is_file())
             self.assertIn(f"references/{reference}", skill)
         for target in ("ocvs", "avs", "gcve"):
             self.assertIn(f"--target {target}", skill)
-        for entity in ("migration_method", "migration_finding", "target_node"):
+        for entity in (
+            "migration_method",
+            "migration_finding",
+            "target_node",
+            "sizing_summary",
+            "sizing_cluster",
+        ):
             self.assertIn(f"`{entity}`", querying)
         self.assertNotIn("each detection's `lenses`", skill)
 
-    def test_shared_cloud_sizing_policy_is_aggressive_and_explicit(self):
+    def test_shared_cloud_sizing_policy_is_deterministic_and_explicit(self):
         common = (ROOT / "references" / "hcx_common.md").read_text(encoding="utf-8")
         ocvs = (ROOT / "references" / "hcx_ocvs.md").read_text(encoding="utf-8")
+        sizing = (ROOT / "references" / "sizing.md").read_text(encoding="utf-8")
 
         for required in (
-            "powered-on, non-template VMs",
+            "all non-template workloads, regardless of power state",
             "4:1 configured-vCPU-to-configured-physical-core ratio",
-            "0% growth uplift",
-            "one additional compute host for N+1",
-            "Memory is not a binding host-count constraint",
-            "powered-off VMs separately",
-            "Do not use a ratio above 4:1",
+            "20% normal-operation CPU headroom",
+            "20% normal-operation memory headroom",
+            "one-host-loss CPU and memory validation",
+            "25% storage headroom",
+            "Use `active_only` only when the user deliberately selects it",
         ):
-            self.assertIn(required, common)
-        self.assertIn("shared default compute-sizing policy", ocvs)
-        self.assertNotIn(
-            "Include N+1/HA reserve, management workload overhead, growth",
-            ocvs,
-        )
+            self.assertIn(required, sizing)
+        self.assertIn("Python sizing result", common)
+        self.assertIn("Oracle default sizing policy", ocvs)
+        self.assertIn("two-host minimum", ocvs)
 
     def test_cloud_sizing_requires_a_cluster_topology_choice_and_compares_both(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -359,11 +376,10 @@ class SkillContractTests(unittest.TestCase):
             "Consolidated target",
             "Source-aligned target",
             "Do not begin a multi-cluster sizing report until the user chooses",
-            "same number of target workload clusters as source clusters",
-            "Apply the provider minimum independently to every target cluster",
-            "brief sizing overview of the unselected topology",
+            "one target cluster for each populated source cluster",
+            "brief view of the unselected topology",
             "target-cluster count",
-            "total purchased hosts",
+            "purchased hosts",
             "VCF-core obligation",
         ):
             self.assertIn(required, common)

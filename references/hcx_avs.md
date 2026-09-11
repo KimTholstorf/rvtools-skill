@@ -21,4 +21,6 @@ AVS hosts use Intel processors. An AMD source host therefore blocks live CPU-sta
 
 Use Microsoft's [Azure Migrate AVS assessment calculations](https://learn.microsoft.com/en-us/azure/migrate/concepts-azure-vmware-solution-assessment-calculation) as a cross-check for sizing assumptions. Explain any difference between its utilization-based model and an RVTools configuration-only estimate.
 
+Use the shared recommended policy and deterministic engine in [sizing.md](sizing.md) unless the user deliberately selects active-only sizing. Do not describe the shared assumptions as Oracle policy in an AVS report. Enforce the current three-host minimum and 16-host maximum per cluster, then validate the first-cluster management overhead described in Microsoft's deployment guidance.
+
 Do not call a VM or wave AVS-ready until the target subscription/region, quota, SKU, connectivity, storage policy, and HCX Validate result are confirmed.

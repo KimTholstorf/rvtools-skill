@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, Optional, Tuple
 
 
-CATALOG_REVIEWED = "2026-08-11"
+CATALOG_REVIEWED = "2026-09-11"
 
 
 @dataclass(frozen=True)
@@ -17,6 +17,7 @@ class TargetProfile:
     name: str
     cpu_vendor: Optional[str]
     nodes: Tuple[Dict[str, Any], ...]
+    sizing_constraints: Dict[str, Any]
     manual_gates: Tuple[Dict[str, str], ...]
     sources: Tuple[Dict[str, str], ...]
 
@@ -185,7 +186,7 @@ COMMON_GATES = (
     },
     {
         "id": "performance_sizing",
-        "evidence": "Validate powered-on non-template VMs at the default 4:1 CPU allocation ratio, accepted aggregate memory overcommit, zero growth uplift, and one-host N+1 reserve against sustained CPU, memory, storage, and network history.",
+        "evidence": "Validate the selected deterministic sizing policy, normal-operation headroom, one-host-loss capacity, largest-VM fit, and storage design against sustained CPU, memory, storage, and network history.",
     },
 )
 
@@ -196,6 +197,13 @@ PROFILES = {
         name="Oracle Cloud VMware Solution",
         cpu_vendor=None,
         nodes=_ocvs_nodes(),
+        sizing_constraints={
+            "primary_role": "unified_management",
+            "workload_role": "workload",
+            "primary_minimum_hosts": 3,
+            "workload_minimum_hosts": 2,
+            "maximum_hosts_per_cluster": 32,
+        },
         manual_gates=COMMON_GATES
         + (
             {
@@ -223,6 +231,13 @@ PROFILES = {
         name="Azure VMware Solution",
         cpu_vendor="Intel",
         nodes=AVS_NODES,
+        sizing_constraints={
+            "primary_role": "primary",
+            "workload_role": "workload",
+            "primary_minimum_hosts": 3,
+            "workload_minimum_hosts": 3,
+            "maximum_hosts_per_cluster": 16,
+        },
         manual_gates=COMMON_GATES
         + (
             {
@@ -270,6 +285,13 @@ PROFILES = {
         name="Google Cloud VMware Engine",
         cpu_vendor="Intel",
         nodes=_gcve_nodes(),
+        sizing_constraints={
+            "primary_role": "primary",
+            "workload_role": "workload",
+            "primary_minimum_hosts": 3,
+            "workload_minimum_hosts": 3,
+            "maximum_hosts_per_cluster": 32,
+        },
         manual_gates=COMMON_GATES
         + (
             {
@@ -342,6 +364,7 @@ def target_profile(target_id, *, target_node=None, target_cpu_vendor=None):
         "cpu_vendor": cpu_vendor,
         "selected_node": selected[0] if selected else None,
         "nodes": nodes,
+        "sizing_constraints": dict(profile.sizing_constraints),
         "catalog_reviewed": CATALOG_REVIEWED,
         "manual_gates": list(profile.manual_gates),
         "sources": list(profile.sources),

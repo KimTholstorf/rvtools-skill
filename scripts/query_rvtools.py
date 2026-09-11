@@ -23,7 +23,7 @@ RVTOOLS = importlib.util.module_from_spec(PARSER_SPEC)
 assert PARSER_SPEC.loader is not None
 PARSER_SPEC.loader.exec_module(RVTOOLS)
 
-INDEX_SCHEMA_VERSION = "7"
+INDEX_SCHEMA_VERSION = "8"
 INDEXED_SHEETS = (
     "vInfo",
     "vHost",
@@ -234,6 +234,57 @@ ENTITY_SCHEMAS = {
         "availability": "TEXT",
         "catalog_reviewed": "TEXT",
     },
+    "sizing_summary": {
+        "target": "TEXT",
+        "policy": "TEXT",
+        "policy_name": "TEXT",
+        "topology": "TEXT",
+        "status": "TEXT",
+        "source_cluster_count": "INTEGER",
+        "target_cluster_count": "INTEGER",
+        "workload_vms": "INTEGER",
+        "compute_vms": "INTEGER",
+        "powered_on_workload_vms": "INTEGER",
+        "powered_off_or_other_workload_vms": "INTEGER",
+        "templates": "INTEGER",
+        "configured_vcpus": "REAL",
+        "configured_memory_gib": "REAL",
+        "provisioned_storage_tib": "REAL",
+        "in_use_storage_tib": "REAL",
+        "storage_required_tib": "REAL",
+        "total_hosts": "INTEGER",
+        "vcf_licensable_cores": "REAL",
+    },
+    "sizing_cluster": {
+        "target": "TEXT",
+        "policy": "TEXT",
+        "topology": "TEXT",
+        "status": "TEXT",
+        "target_cluster": "TEXT",
+        "role": "TEXT",
+        "source_clusters": "TEXT",
+        "node_type": "TEXT",
+        "selection_strategy": "TEXT",
+        "vm_count": "INTEGER",
+        "vcpus": "REAL",
+        "memory_gib": "REAL",
+        "provisioned_storage_tib": "REAL",
+        "in_use_storage_tib": "REAL",
+        "storage_required_tib": "REAL",
+        "provider_minimum_hosts": "INTEGER",
+        "normal_cpu_floor": "INTEGER",
+        "normal_memory_floor": "INTEGER",
+        "failure_cpu_floor": "INTEGER",
+        "failure_memory_floor": "INTEGER",
+        "total_hosts": "INTEGER",
+        "binding_constraints": "TEXT",
+        "normal_cpu_utilization_percent": "REAL",
+        "normal_memory_utilization_percent": "REAL",
+        "post_failure_cpu_utilization_percent": "REAL",
+        "post_failure_memory_utilization_percent": "REAL",
+        "one_host_loss_validated": "INTEGER",
+        "vcf_licensable_cores": "REAL",
+    },
 }
 
 DEFAULT_SELECT = {
@@ -311,6 +362,37 @@ DEFAULT_SELECT = {
         "raw_storage_tb_esa",
         "storage_only",
         "availability",
+    ),
+    "sizing_summary": (
+        "target",
+        "policy",
+        "policy_name",
+        "topology",
+        "status",
+        "source_cluster_count",
+        "target_cluster_count",
+        "compute_vms",
+        "configured_vcpus",
+        "configured_memory_gib",
+        "storage_required_tib",
+        "total_hosts",
+        "vcf_licensable_cores",
+    ),
+    "sizing_cluster": (
+        "target",
+        "policy",
+        "topology",
+        "target_cluster",
+        "role",
+        "node_type",
+        "vcpus",
+        "memory_gib",
+        "provider_minimum_hosts",
+        "failure_cpu_floor",
+        "failure_memory_floor",
+        "total_hosts",
+        "one_host_loss_validated",
+        "vcf_licensable_cores",
     ),
 }
 
@@ -431,8 +513,10 @@ def _build_index(connection, workbook_path, digest):
         for row in rows["vTools"]
         if _text(row, "VM")
     }
+    prepared_sizing_input = RVTOOLS.prepare_sizing_input(rows)
+    normalized_inventory = prepared_sizing_input["inventory"]
     vm_values = []
-    for row in rows["vInfo"]:
+    for row, normalized in zip(rows["vInfo"], normalized_inventory):
         guest_os, guest_os_source = RVTOOLS._guest_os(row)
         vm_name = _text(row, "VM") or "(unnamed VM)"
         vm_values.append(
@@ -440,7 +524,7 @@ def _build_index(connection, workbook_path, digest):
                 "vm": vm_name,
                 "power_state": _text(row, "Powerstate"),
                 "template": _bool(row, "Template"),
-                "cluster": _text(row, "Cluster") or "(unassigned)",
+                "cluster": normalized["cluster"],
                 "host": _text(row, "Host"),
                 "guest_os": guest_os,
                 "guest_os_family": RVTOOLS._guest_os_family(guest_os),
@@ -784,6 +868,121 @@ def _build_index(connection, workbook_path, digest):
     _insert_rows(connection, "migration_method", migration_methods)
     _insert_rows(connection, "migration_finding", migration_findings)
     _insert_rows(connection, "target_node", target_nodes)
+
+    sizing_summaries = []
+    sizing_clusters = []
+    sizing_errors = set()
+    sizing_runtime_warnings = set()
+    for target_id in RVTOOLS.TARGET_IDS:
+        for policy_id in RVTOOLS.POLICIES:
+            for topology in ("consolidated", "source_aligned"):
+                try:
+                    sizing = RVTOOLS.size_environment(
+                        rows,
+                        target_id,
+                        policy_id=policy_id,
+                        topology=topology,
+                        prepared=prepared_sizing_input,
+                    )
+                except ValueError as exc:
+                    sizing_errors.add(str(exc))
+                    continue
+                for warning in sizing["warnings"]:
+                    message = warning["message"]
+                    if warning.get("count") is not None:
+                        message = f"{message} Affected inventory objects: {warning['count']}."
+                    sizing_runtime_warnings.add((warning["code"], message))
+                totals = sizing["totals"]
+                sizing_summaries.append(
+                    {
+                        "target": target_id,
+                        "policy": policy_id,
+                        "policy_name": sizing["policy"]["display_name"],
+                        "topology": topology,
+                        "status": sizing["status"],
+                        "source_cluster_count": totals["source_clusters"],
+                        "target_cluster_count": totals["target_clusters"],
+                        "workload_vms": totals["workload_vms"],
+                        "compute_vms": totals["compute_vms"],
+                        "powered_on_workload_vms": totals["powered_on_workload_vms"],
+                        "powered_off_or_other_workload_vms": totals[
+                            "powered_off_or_other_workload_vms"
+                        ],
+                        "templates": totals["templates"],
+                        "configured_vcpus": totals["configured_vcpus"],
+                        "configured_memory_gib": totals["configured_memory_gib"],
+                        "provisioned_storage_tib": totals["provisioned_storage_tib"],
+                        "in_use_storage_tib": totals["in_use_storage_tib"],
+                        "storage_required_tib": totals["storage_required_tib"],
+                        "total_hosts": totals["total_hosts"],
+                        "vcf_licensable_cores": totals["vcf_licensable_cores"],
+                    }
+                )
+                for cluster in sizing["clusters"]:
+                    demand = cluster["demand"]
+                    recommendation = cluster["recommendation"] or {}
+                    sizing_clusters.append(
+                        {
+                            "target": target_id,
+                            "policy": policy_id,
+                            "topology": topology,
+                            "status": cluster["status"],
+                            "target_cluster": cluster["target_cluster"],
+                            "role": cluster["role"],
+                            "source_clusters": ",".join(cluster["source_clusters"]),
+                            "node_type": recommendation.get("node_type"),
+                            "selection_strategy": recommendation.get(
+                                "selection_strategy"
+                            ),
+                            "vm_count": demand["vm_count"],
+                            "vcpus": demand["vcpus"],
+                            "memory_gib": demand["memory_gib"],
+                            "provisioned_storage_tib": demand[
+                                "provisioned_storage_tib"
+                            ],
+                            "in_use_storage_tib": demand["in_use_storage_tib"],
+                            "storage_required_tib": demand["storage_required_tib"],
+                            "provider_minimum_hosts": recommendation.get(
+                                "provider_minimum_hosts"
+                            ),
+                            "normal_cpu_floor": recommendation.get("normal_cpu_floor"),
+                            "normal_memory_floor": recommendation.get(
+                                "normal_memory_floor"
+                            ),
+                            "failure_cpu_floor": recommendation.get(
+                                "failure_cpu_floor"
+                            ),
+                            "failure_memory_floor": recommendation.get(
+                                "failure_memory_floor"
+                            ),
+                            "total_hosts": recommendation.get("total_hosts"),
+                            "binding_constraints": ",".join(
+                                recommendation.get("binding_constraints", [])
+                            ),
+                            "normal_cpu_utilization_percent": recommendation.get(
+                                "normal_cpu_utilization_percent"
+                            ),
+                            "normal_memory_utilization_percent": recommendation.get(
+                                "normal_memory_utilization_percent"
+                            ),
+                            "post_failure_cpu_utilization_percent": recommendation.get(
+                                "post_failure_cpu_utilization_percent"
+                            ),
+                            "post_failure_memory_utilization_percent": recommendation.get(
+                                "post_failure_memory_utilization_percent"
+                            ),
+                            "one_host_loss_validated": (
+                                int(recommendation["one_host_loss_validated"])
+                                if "one_host_loss_validated" in recommendation
+                                else None
+                            ),
+                            "vcf_licensable_cores": recommendation.get(
+                                "vcf_licensable_cores"
+                            ),
+                        }
+                    )
+    _insert_rows(connection, "sizing_summary", sizing_summaries)
+    _insert_rows(connection, "sizing_cluster", sizing_clusters)
     connection.executemany(
         "INSERT INTO query_warning (code, scope, message) VALUES (?, ?, ?)",
         (
@@ -793,6 +992,34 @@ def _build_index(connection, workbook_path, digest):
                 "RVTools provides a planning screen, not a successful HCX Validate result; complete the listed manual gates before execution.",
             )
             for entity in ("migration_method", "migration_finding", "target_node")
+        ),
+    )
+    connection.executemany(
+        "INSERT INTO query_warning (code, scope, message) VALUES (?, ?, ?)",
+        (
+            (code, entity, message)
+            for entity in ("sizing_summary", "sizing_cluster")
+            for code, message in sorted(sizing_runtime_warnings)
+            if code != "configuration_only_sizing"
+        ),
+    )
+    connection.executemany(
+        "INSERT INTO query_warning (code, scope, message) VALUES (?, ?, ?)",
+        (
+            ("sizing_unavailable", entity, message)
+            for entity in ("sizing_summary", "sizing_cluster")
+            for message in sorted(sizing_errors)
+        ),
+    )
+    connection.executemany(
+        "INSERT INTO query_warning (code, scope, message) VALUES (?, ?, ?)",
+        (
+            (
+                "configuration_only_sizing",
+                entity,
+                "RVTools configuration is a planning baseline; validate sustained CPU, memory, storage, and network demand before purchase.",
+            )
+            for entity in ("sizing_summary", "sizing_cluster")
         ),
     )
     connection.commit()
@@ -1048,6 +1275,12 @@ def run_query(workbook, plan, *, index_path=None):
             warning_query = (
                 "SELECT code, scope, message FROM query_warning "
                 "WHERE code = 'migration_screening_not_validation' AND scope = ?"
+            )
+            warning_parameters = (entity,)
+        elif entity in {"sizing_summary", "sizing_cluster"}:
+            warning_query = (
+                "SELECT code, scope, message FROM query_warning "
+                "WHERE scope = ?"
             )
             warning_parameters = (entity,)
         elif cluster_scoped:
