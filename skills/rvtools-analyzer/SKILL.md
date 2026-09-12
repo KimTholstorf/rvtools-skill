@@ -1,6 +1,6 @@
 ---
 name: rvtools-analyzer
-description: Analyze and query VMware RVTools XLSX exports for OCVS, AVS, or GCVE migration and deterministic sizing with HCX, VCF readiness, vSphere health, hardware and guest OS lifecycle, overcommit, licensing, capacity, and inventory questions.
+description: Analyze and query VMware RVTools XLSX exports for OCVS, AVS, or GCVE migration, deterministic sizing, provider-priced BOMs, HCX, VCF readiness, vSphere health, hardware and guest OS lifecycle, overcommit, licensing, capacity, and inventory questions.
 ---
 
 # RVTools Analyzer
@@ -14,6 +14,8 @@ Override the root skill's direct Python commands with the private runtime launch
 ```bash
 python3 /absolute/path/to/plugin/scripts/run_rvtools.py parse /absolute/path/to/export.xlsx --pretty --max-examples 25 --output /safe/local/path/rvtools-analysis.json
 ```
+
+Add `--include-bom`, the selected target and topology, and the requested currency for a cloud sizing report with a provider-specific BOM. AVS and GCVE also need `--target-region` for live pricing.
 
 ```bash
 python3 /absolute/path/to/plugin/scripts/run_rvtools.py query /absolute/path/to/export.xlsx \

@@ -1,5 +1,5 @@
 ---
-description: Query RVTools or assess OCVS, AVS, GCVE, VCF, and vSphere health
+description: Query RVTools or assess, size, and price OCVS, AVS, GCVE, and VCF
 argument-hint: [question, assessment, or workbook path]
 ---
 

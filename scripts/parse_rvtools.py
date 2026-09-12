@@ -20,6 +20,13 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from rvtools.migration import TARGET_IDS, assess_migration
+from rvtools.bom import (
+    DEFAULT_CURRENCY,
+    DEFAULT_PRICING_MODEL,
+    build_bom,
+    storage_plan_for_sizing,
+)
+from rvtools.licensing import summarize_vcf_hosts
 from rvtools.sizing import (
     DEFAULT_POLICY_ID,
     POLICIES,
@@ -28,7 +35,7 @@ from rvtools.sizing import (
 )
 
 
-SCHEMA_VERSION = "3.0"
+SCHEMA_VERSION = "4.0"
 ANALYSIS_SHEETS = (
     "vHost",
     "vCluster",
@@ -953,8 +960,22 @@ def analyze_workbook(
     sizing_policy=DEFAULT_POLICY_ID,
     sizing_topology=None,
     primary_source_cluster=None,
+    include_bom=False,
+    currency=DEFAULT_CURRENCY,
+    pricing_model=DEFAULT_PRICING_MODEL,
+    storage_strategy=None,
+    storage_redundancy="LRS",
+    elastic_san_base_tib=None,
+    storage_vpu_per_gb=10,
+    vcf_entitlement_cores=None,
+    pricing_adapter=None,
 ):
     """Return the normalized analysis payload for an RVTools workbook."""
+    currency = str(currency or "").strip().upper()
+    if len(currency) != 3 or not currency.isalpha():
+        raise ValueError("currency must be a three-letter ISO code")
+    if vcf_entitlement_cores is not None and float(vcf_entitlement_cores) < 0:
+        raise ValueError("VCF entitlement cores cannot be negative")
     path = Path(path)
     workbook = load_workbook(path, read_only=True, data_only=True)
     try:
@@ -1097,6 +1118,58 @@ def analyze_workbook(
                     "topology": resolved_topology,
                     "message": str(exc),
                 }
+        if include_bom:
+            if result["sizing"].get("status") != "complete":
+                result["bom"] = {
+                    "status": "unavailable",
+                    "message": "Resolve the sizing topology and every target-cluster recommendation before generating the BOM.",
+                }
+            else:
+                scoped_clusters = set(
+                    result["sizing"].get("topology", {}).get("source_clusters", [])
+                )
+                scoped_hosts = [
+                    row
+                    for row in hosts
+                    if str(_value(row, "Cluster", "Cluster name", default="")).strip()
+                    in scoped_clusters
+                ]
+                current_vcf = summarize_vcf_hosts(
+                    scoped_hosts, value_getter=_value
+                )
+                try:
+                    storage_plan = storage_plan_for_sizing(
+                        result["sizing"],
+                        strategy=storage_strategy,
+                        redundancy=storage_redundancy,
+                        elastic_san_base_tib=elastic_san_base_tib,
+                        storage_vpu_per_gb=storage_vpu_per_gb,
+                    )
+                    result["bom"] = build_bom(
+                        result["sizing"],
+                        adapter=pricing_adapter,
+                        region=target_region,
+                        currency=currency,
+                        pricing_model=pricing_model,
+                        current_vcf_cores=(
+                            vcf_entitlement_cores
+                            if vcf_entitlement_cores is not None
+                            else current_vcf["vcf_licensable_cores"]
+                        ),
+                        current_entitlement_verified=vcf_entitlement_cores is not None,
+                        storage_plan=storage_plan,
+                    )
+                    result["bom"]["licensing"]["current_estate_calculation"] = current_vcf
+                except ValueError as exc:
+                    result["bom"] = {
+                        "status": "unavailable",
+                        "message": str(exc),
+                    }
+    elif include_bom:
+        result["bom"] = {
+            "status": "unavailable",
+            "message": "Choose an OCVS, AVS, or GCVE target before generating the BOM.",
+        }
     return result
 
 
@@ -1147,6 +1220,49 @@ def main(argv=None):
         "--primary-source-cluster",
         help="Source cluster that should become the primary or unified-management target cluster",
     )
+    parser.add_argument(
+        "--include-bom",
+        action="store_true",
+        help="Append provider-specific BOM quantities and live list-price lookups to completed sizing",
+    )
+    parser.add_argument(
+        "--currency",
+        default=DEFAULT_CURRENCY,
+        help="Provider price-list currency code (default: USD)",
+    )
+    parser.add_argument(
+        "--pricing-model",
+        choices=("on_demand", "one_year", "three_year"),
+        default=DEFAULT_PRICING_MODEL,
+        help="Commercial pricing model (default: on_demand)",
+    )
+    parser.add_argument(
+        "--storage-strategy",
+        choices=("provider_default", "block_volume", "integrated_vsan", "elastic_san"),
+        help="Storage components to include in the BOM",
+    )
+    parser.add_argument(
+        "--storage-redundancy",
+        choices=("LRS", "ZRS"),
+        default="LRS",
+        help="Azure Elastic SAN redundancy (default: LRS)",
+    )
+    parser.add_argument(
+        "--elastic-san-base-tib",
+        type=float,
+        help="Explicit Azure Elastic SAN base capacity in TiB",
+    )
+    parser.add_argument(
+        "--storage-vpu-per-gb",
+        type=float,
+        default=10,
+        help="OCI Block Volume performance units per GiB (default: 10)",
+    )
+    parser.add_argument(
+        "--vcf-entitlement-cores",
+        type=float,
+        help="Confirmed portable VCF core entitlement to compare with the target requirement",
+    )
     args = parser.parse_args(argv)
     if args.output and args.output.resolve() == args.workbook.resolve():
         parser.exit(2, "error: output path must not overwrite the source workbook\n")
@@ -1161,6 +1277,14 @@ def main(argv=None):
             sizing_policy=args.sizing_policy,
             sizing_topology=args.sizing_topology,
             primary_source_cluster=args.primary_source_cluster,
+            include_bom=args.include_bom,
+            currency=args.currency,
+            pricing_model=args.pricing_model,
+            storage_strategy=args.storage_strategy,
+            storage_redundancy=args.storage_redundancy,
+            elastic_san_base_tib=args.elastic_san_base_tib,
+            storage_vpu_per_gb=args.storage_vpu_per_gb,
+            vcf_entitlement_cores=args.vcf_entitlement_cores,
         )
     except (FileNotFoundError, OSError, ValueError) as exc:
         parser.exit(2, f"error: {exc}\n")

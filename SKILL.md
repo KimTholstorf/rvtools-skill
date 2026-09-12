@@ -1,6 +1,6 @@
 ---
 name: rvtools-analyzer
-description: Analyze and conversationally query VMware RVTools multi-sheet .xlsx exports, and produce evidence-based assessments for Oracle Cloud VMware Solution (OCVS), Azure VMware Solution (AVS), or Google Cloud VMware Engine (GCVE) migrations with VMware HCX, on-premises VMware Cloud Foundation (VCF) re-platforming, or general vSphere health, hardware lifecycle, guest operating-system lifecycle, security, licensing, and capacity. Use when an agent receives an RVTools export or is asked factual inventory questions, VM/host/cluster counts, server vendor/model, CPU or Hyper-Threading questions, guest OS or OS support questions, filtered or grouped inventory queries, migration blockers, HCX readiness, VCF readiness, snapshot or disk risk, network configuration, overcommit, VM sprawl, end-of-sale/support status, or infrastructure health from RVTools data.
+description: Analyze and conversationally query VMware RVTools multi-sheet .xlsx exports, and produce evidence-based assessments, cloud sizing, and provider-priced BOMs for Oracle Cloud VMware Solution (OCVS), Azure VMware Solution (AVS), or Google Cloud VMware Engine (GCVE) migrations with VMware HCX, on-premises VMware Cloud Foundation (VCF) re-platforming, or general vSphere health, hardware lifecycle, guest operating-system lifecycle, security, licensing, and capacity. Use when an agent receives an RVTools export or is asked factual inventory questions, VM/host/cluster counts, server vendor/model, CPU or Hyper-Threading questions, guest OS or OS support questions, filtered or grouped inventory queries, migration blockers, HCX readiness, VCF readiness, cloud price or BOM estimates, snapshot or disk risk, network configuration, overcommit, VM sprawl, end-of-sale/support status, or infrastructure health from RVTools data.
 ---
 
 # RVTools Analyzer
@@ -40,6 +40,8 @@ For an OCVS, AVS, or GCVE sizing report with more than one source cluster in sco
 
 For every cloud sizing request, also read [references/sizing.md](references/sizing.md). Use the deterministic Python result as the calculation record. The `recommended` policy is the baseline unless the user deliberately asks for `active_only` or supplies different assumptions.
 
+For a cloud sizing report or BOM request, also read [references/bom.md](references/bom.md). Resolve the sizing topology first, then append the provider-specific BOM from the same sizing result. Default to USD unless the user asks for another currency. Require an exact region for priced AVS and GCVE output; keep the BOM unpriced rather than guessing when pricing inputs or API access are unavailable.
+
 Treat a future lens as another file under `references/`. Let that reference declare which parser detection IDs or categories it interprets; do not duplicate parsing logic or require a separate workbook pass.
 
 ## Protect the export
@@ -73,10 +75,13 @@ For a sizing result, add the chosen topology. The recommended policy is applied 
 
 ```bash
 python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target ocvs \
-  --sizing-topology source_aligned --pretty --output /safe/local/path/ocvs-sizing.json
+  --sizing-topology source_aligned --include-bom --currency USD \
+  --pretty --output /safe/local/path/ocvs-sizing.json
 ```
 
 Use `--sizing-policy active_only` only when the user deliberately selects the less conservative active-workload model. Use `--primary-source-cluster` when the primary or unified-management mapping is known.
+
+Use `--vcf-entitlement-cores` only when the user supplies or confirms the actual portable VCF entitlement. Otherwise the BOM compares the target with the in-scope hosts' calculated requirement and labels that figure as a hardware proxy.
 
 Use `--target-node` and `--target-region` only when the user has selected them. For OCVS, use `--target-cpu-vendor Intel|AMD` when known; otherwise retain the target CPU vendor manual gate.
 
@@ -92,6 +97,7 @@ The parser emits:
 - `detections`: provider-neutral source-health rule ID, severity, category, tags, count, and bounded safe examples;
 - `migration`: when `--target` is supplied, the target profile, exact per-VM/per-method screening, findings, manual gates, and dated vendor source catalog;
 - `sizing`: when `--target` is supplied, either the deterministic sizing result or a topology-selection prompt for a multi-cluster scope;
+- `bom`: when `--include-bom` is supplied, provider-specific quantities, public list-price evidence, monthly estimates, and current-estate versus target VCF cores;
 - `warnings`: missing sheets and resulting coverage gaps.
 
 Stop and report an invalid-input error if `vInfo` is absent. Continue with explicit coverage limitations when optional sheets are missing.
@@ -130,6 +136,7 @@ For sizing questions, query `sizing_summary` for estate or topology totals and `
 8. For guest-OS lifecycle, research exact in-scope releases against current primary-vendor sources. Treat extended-support availability as distinct from customer entitlement, keep ambiguous versions unknown, and never change an HCX method result because of OS lifecycle.
 9. For OCVS, AVS, or GCVE sizing, use the deterministic `sizing` result. Calculate workload fit from configured capacity and VCF licensing from full physical silicon. Include the VCF-core obligation when comparing node types, including reduced-core and storage-only variants. Withhold the licensing recommendation if the full silicon count cannot be verified from current provider and Broadcom documentation.
 10. For multi-cluster sizing, make the user's topology choice the primary sizing recommendation and include a brief reverse-topology comparison. Never present consolidated sizing as the assumed default.
+11. For a cloud BOM, use the provider adapter's rows without renaming API-native identifiers. Calculate the current-estate VCF requirement from in-scope hosts and the target requirement from full physical silicon. Preserve `partial` or `unpriced` status and never fill a missing rate with an estimate from another region, currency, or SKU.
 
 ## Produce the report
 
@@ -151,6 +158,7 @@ Use this information order:
 8. Coverage gaps and additional evidence required.
 9. Method, thresholds, assumptions, source workbook hash, and authoritative source links.
 10. Acronym glossary.
+11. For cloud sizing, Bill of materials and public list-price estimate.
 
 In **Assessment scope and coverage**, state whether the report covers the full exported estate or a filtered selection. Show selected versus exported counts for vCenters, datacenters, clusters, hosts, workload VMs, powered-on VMs, and templates when those fields are available. Name every selected vCenter and datacenter, and list cluster names when ten or fewer are selected; otherwise give the count and a bounded appendix. Datacenter names must not replace cluster names when the user selected individual clusters.
 
@@ -182,6 +190,8 @@ Before finishing:
 - Confirm every sizing report uses the deterministic engine result, names the selected policy, shows all binding host-count constraints, and does not add a failure host blindly to the provider minimum.
 - Confirm OCVS reports call the recommended profile the Oracle default sizing policy. Confirm AVS and GCVE reports call it the recommended sizing policy and do not attribute it to Oracle.
 - Confirm every multi-cluster cloud sizing report records the user's topology choice, shows the primary source-to-target cluster mapping, and includes the reverse-topology comparison using the same scope and assumptions.
+- Confirm every priced cloud sizing report uses `bom.table`, names the currency, region and pricing model, distinguishes complete, partial and unpriced results, and does not present a partial subtotal as a grand total.
+- Confirm current-estate VCF is labeled as a hardware-derived requirement unless actual entitlement was verified, and target VCF uses full physical silicon.
 - Confirm a vSAN result distinguishes verified raw TiB from an RVTools datastore-capacity proxy and reports either add-on TiB or surplus TiB, never both as positive.
 - Confirm scope coverage shows selected versus exported infrastructure and that every reported total uses the same scope filter.
 - Confirm the acronym glossary defines every non-obvious abbreviation used in the report and contains no unused entries.

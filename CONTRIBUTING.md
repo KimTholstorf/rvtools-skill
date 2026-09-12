@@ -8,7 +8,8 @@ Thanks for helping improve RVTools Analyzer. The project deliberately keeps fact
 - `skills/rvtools-analyzer/SKILL.md` is the installed plugin entry point shared by Claude and Codex.
 - `scripts/parse_rvtools.py` reads a workbook and produces deterministic inventory facts, findings, migration results, and sizing data.
 - `scripts/query_rvtools.py` builds the local allowlisted SQLite index used for conversational questions.
-- `scripts/rvtools/` contains reusable domain logic. Migration rules live in `migration.py`, provider catalogs in `targets.py`, and shared sizing calculations in `sizing.py`.
+- `scripts/rvtools/` contains reusable domain logic. Migration rules live in `migration.py`, provider catalogs in `targets.py`, shared sizing calculations in `sizing.py`, and the normalized cloud bill of materials in `bom.py`.
+- `scripts/rvtools/pricing/` contains the OCI, Azure, and Google public price-list adapters. Tests mock those APIs; the test suite must not depend on live prices or credentials.
 - `references/` contains the guidance used to interpret parser results. Put vendor-specific policy here rather than hiding it in a prompt or duplicating Python calculations.
 - `assets/report-template.html` is the shared HTML report design.
 - `.claude-plugin/`, `.codex-plugin/`, `.agents/plugins/`, and `commands/` contain installation and marketplace metadata.
@@ -69,6 +70,8 @@ Start with a failing test when changing deterministic behavior. Keep parsing, ca
 
 Provider limits and node specifications belong in `scripts/rvtools/targets.py`. Shared capacity arithmetic belongs in `scripts/rvtools/sizing.py`. This keeps OCVS, AVS, GCVE, and custom VCF hardware profiles on the same calculation path.
 
+Keep provider billing fields and SKU matching in the relevant adapter under `scripts/rvtools/pricing/`. Keep cross-provider quantity, subtotal, and VCF-delta behavior in `scripts/rvtools/bom.py`. A missing or ambiguous live rate should produce a partial or unpriced BOM, not a guessed price or a failed sizing report.
+
 Please preserve these project rules:
 
 - Never upload or commit a real customer workbook, parser output, SQLite index, or customer-derived report.
@@ -83,11 +86,11 @@ Please preserve these project rules:
 Maintainers publish a release by committing the finished change, creating a matching semantic-version tag, and pushing the branch and tag together. The version in both plugin manifests must match the tag.
 
 ```bash
-git tag -a v0.5.0 -m "RVTools Analyzer 0.5.0"
-git push --atomic origin main v0.5.0
+git tag -a v0.6.0 -m "RVTools Analyzer 0.6.0"
+git push --atomic origin main v0.6.0
 ```
 
-Replace `0.5.0` with the release being published. After CI passes for that exact commit, the separate release workflow builds the Claude Desktop ZIP from `SKILL.md`, `assets/`, `references/`, and `scripts/`, validates its contents, and attaches it to the GitHub release.
+Replace `0.6.0` with the release being published. After CI passes for that exact commit, the separate release workflow builds the Claude Desktop ZIP from `SKILL.md`, `assets/`, `references/`, and `scripts/`, validates its contents, and attaches it to the GitHub release.
 
 ## Pull-request checklist
 

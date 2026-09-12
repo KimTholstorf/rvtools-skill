@@ -23,6 +23,8 @@ RVTOOLS = importlib.util.module_from_spec(PARSER_SPEC)
 assert PARSER_SPEC.loader is not None
 PARSER_SPEC.loader.exec_module(RVTOOLS)
 
+from rvtools.licensing import host_core_requirement
+
 INDEX_SCHEMA_VERSION = "8"
 INDEXED_SHEETS = (
     "vInfo",
@@ -434,24 +436,13 @@ def _optional_bool(row, *headers):
 
 
 def _vcf_core_values(row):
-    sockets = float(_number(row, "# CPU"))
-    cores_per_cpu = float(_number(row, "Cores per CPU"))
-    physical_cores = float(_number(row, "# Cores", "Cores"))
-    if sockets <= 0:
-        return sockets, cores_per_cpu, physical_cores, None, None
-    if physical_cores > 0:
-        licensable = max(physical_cores, sockets * 16)
-    elif cores_per_cpu > 0:
-        physical_cores = sockets * cores_per_cpu
-        licensable = sockets * max(cores_per_cpu, 16)
-    else:
-        return sockets, cores_per_cpu, physical_cores, None, None
+    requirement = host_core_requirement(row, value_getter=RVTOOLS._value)
     return (
-        sockets,
-        cores_per_cpu,
-        physical_cores,
-        float(licensable),
-        float(licensable - physical_cores),
+        requirement["cpu_sockets"],
+        requirement["cores_per_cpu"],
+        requirement["physical_silicon_cores"],
+        requirement["vcf_licensable_cores"],
+        requirement["minimum_core_adjustment"],
     )
 
 

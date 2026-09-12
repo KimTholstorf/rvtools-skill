@@ -61,6 +61,8 @@ If the scope contains several source clusters, the skill asks whether to consoli
 
 When no node type is supplied, the engine compares valid choices and selects a practical trade-off between host count and full-silicon VCF cores. That is a planning recommendation, not a price quote. Region, availability, quota, workload performance, and commercial terms still need checking before purchase.
 
+A sizing report can finish with a provider-specific bill of materials. OCVS uses part numbers and currency-specific rates from Oracle's public price list, while AVS and GCVE keep the product, SKU, meter, region, and billing fields returned by their own catalogs. If a rate is missing or ambiguous, the report keeps the quantities and marks the line unpriced instead of filling the gap with a guess. The same table shows the current-estate VCF requirement, the target requirement, and any additional or surplus cores. Google price lookups need a local `GOOGLE_CLOUD_API_KEY`; without one, the GCVE quantities are still reported but left unpriced.
+
 Workload capacity is calculated from the cores made available by the selected node, while portable VCF licensing counts every physical silicon core in each purchased host. A reduced-core cloud configuration therefore does not reduce the VCF core count. This follows Broadcom's [core-counting guidance](https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html). Storage remains a separate design decision because vSAN policy overhead, rebuild reserve, required free space, and migration staging affect usable capacity.
 
 The same calculation engine can size new on-premises VCF hardware once you provide a verified bill of materials. It will not assume that the current hosts are the right target design.
@@ -161,6 +163,8 @@ Attach an RVTools `.xlsx` export, or provide its local path, and ask something l
 - “Show the CPU, memory, and raw storage for GCVE ve2-standard-128.”
 - “Size this estate for OCVS with the recommended policy and preserve the populated source clusters.”
 - “Show how the OCVS result changes with active-only sizing.”
+- “Create an OCVS sizing report with a provider-specific bill of materials in EUR.”
+- “Price this AVS sizing in West Europe and show which lines could not be priced.”
 
 Short factual questions get a direct answer in chat. A full assessment creates an HTML report in an interactive session or a Markdown report in a file-oriented session, unless you ask for a different supported format.
 
@@ -178,7 +182,7 @@ The skill limits exposure by:
 - Returning counts and bounded examples instead of dumping full infrastructure inventories into the conversation.
 - Using only the minimum vendor and model identifiers needed for public hardware lifecycle research, never the raw workbook.
 
-The parser and query scripts contain no workbook-upload code. Network access may still be used on first run to download pinned Python dependencies from the configured package index. Lifecycle, compatibility, and current product checks may consult public vendor documentation using only the identifiers needed for the lookup.
+The parser and query scripts contain no workbook-upload code. Network access may still be used on first run to download pinned Python dependencies from the configured package index. Lifecycle, compatibility, and current product checks may consult public vendor documentation using only the identifiers needed for the lookup. BOM pricing sends only the provider SKU, region, currency, and pricing model to the public Oracle, Azure, or Google catalog; it never sends workbook rows or customer inventory.
 
 ## Scope and limitations
 

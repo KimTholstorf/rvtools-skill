@@ -96,6 +96,8 @@ For every target cluster, show:
 
 Use `sizing_summary` for conversational estate totals and `sizing_cluster` for per-cluster workings. The index precomputes both policies and both topologies so follow-up questions use the same deterministic figures as the report.
 
+When the report needs commercial quantities or public list prices, pass the completed sizing result to the provider-neutral BOM engine and follow [bom.md](bom.md). Do not let pricing availability change the selected host count.
+
 ## Primary sources
 
 - [Oracle OCVS cluster addition and workload-cluster limits](https://docs.oracle.com/en-us/iaas/Content/VMware/Tasks/cluster-add.htm)

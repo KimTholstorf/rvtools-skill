@@ -2,6 +2,22 @@
 
 This file tracks each RVTools Analyzer release.
 
+## [0.6.0] - 2026-09-12
+
+### Added
+
+- Provider-specific bills of materials for OCVS, AVS, and GCVE sizing reports, built from the same deterministic host quantities as the sizing engine.
+- Live currency-specific list-price lookups through Oracle's public pricing API, the Azure Retail Prices API, and the Google Cloud Billing Catalog API.
+- OCI part-number rows, Azure product/SKU/meter rows, and Google SKU and service-region rows instead of one generic table that hides provider detail.
+- Current-estate, target, additional, or surplus VCF core rows using full physical silicon for target licensing.
+- Optional OCI Block Volume performance and Azure Elastic SAN base/capacity inputs.
+
+### Changed
+
+- Pricing failures no longer block a sizing report. The BOM keeps its quantities, marks unavailable lines, and withholds a grand total when only part of the design can be priced.
+- The parser output schema is now version 4.0 and can include a normalized `bom` record.
+- Cloud pricing requests send only SKU, region, currency, and pricing-model identifiers. Workbook data stays local.
+
 ## [0.5.0] - 2026-09-11
 
 ### Added
@@ -142,6 +158,7 @@ This file tracks each RVTools Analyzer release.
 - Plugin marketplace packaging for Claude Code and Codex.
 - The short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.6.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.1...v0.4.2

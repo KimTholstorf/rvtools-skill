@@ -1,4 +1,4 @@
 interface:
   display_name: "RVTools Analyzer"
-  short_description: "Query RVTools, size cloud VMware, or assess health"
-  default_prompt: "Use $rvtools-analyzer to explore this RVTools export, size OCVS, AVS, or GCVE, or assess migration, VCF, and vSphere health risks."
+  short_description: "Query RVTools, size cloud VMware, or build a BOM"
+  default_prompt: "Use $rvtools-analyzer to explore this RVTools export, size OCVS, AVS, or GCVE, and build a provider-specific BOM."

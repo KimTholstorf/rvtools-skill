@@ -176,7 +176,7 @@ class ParseInventoryTests(unittest.TestCase):
     def test_extracts_normalized_inventory_and_capacity(self):
         result = PARSER.analyze_workbook(self.path)
 
-        self.assertEqual(result["schema_version"], "3.0")
+        self.assertEqual(result["schema_version"], "4.0")
         self.assertEqual(result["source"]["file"], self.path.name)
         self.assertEqual(result["source"]["rvtools_version"], "4.7.1")
         self.assertEqual(result["inventory"]["vms"], 2)
@@ -542,7 +542,7 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertTrue(completed.stdout.strip())
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["schema_version"], "3.0")
+        self.assertEqual(payload["schema_version"], "4.0")
         self.assertTrue(all(len(item["examples"]) <= 1 for item in payload["detections"]))
 
     def test_adds_a_selected_target_migration_assessment(self):
@@ -569,6 +569,77 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(result["sizing"]["topology"]["primary_target_cluster"], "cluster-a")
         by_vm = {row["vm"]: row for row in result["migration"]["vm_methods"]}
         self.assertEqual(by_vm["db-ora-01"]["methods"]["rav"]["status"], "blocked")
+
+    def test_can_append_a_provider_bom_to_a_completed_sizing_result(self):
+        class Adapter:
+            provider = "ocvs"
+            monthly_hours = 744
+            region_required = False
+            columns = ("Category", "Component", "Part", "Quantity", "Rate", "Monthly")
+
+            def component_specs(self, sizing, storage_plan=None):
+                return [
+                    {
+                        "category": "Compute",
+                        "component": "selected hosts",
+                        "sku": "TEST-1",
+                        "quantity": sizing["totals"]["total_hosts"],
+                        "billing_quantity": sizing["totals"]["total_hosts"],
+                        "billing_unit": "host month",
+                    }
+                ]
+
+            def quote(self, spec, **kwargs):
+                return {
+                    "status": "priced",
+                    "unit_price": 100,
+                    "unit": "host month",
+                    "monthly_factor": 1,
+                    "provider_fields": {"Part": spec["sku"]},
+                }
+
+        result = PARSER.analyze_workbook(
+            self.path,
+            target="ocvs",
+            include_bom=True,
+            pricing_adapter=Adapter(),
+        )
+
+        self.assertEqual(result["bom"]["status"], "complete")
+        self.assertEqual(result["bom"]["currency"], "USD")
+        self.assertEqual(result["bom"]["licensing"]["current_vcf_cores"], 64)
+        self.assertEqual(
+            result["bom"]["licensing"]["target_vcf_cores"],
+            result["sizing"]["totals"]["vcf_licensable_cores"],
+        )
+
+    def test_bom_request_without_resolved_topology_stays_explicitly_unavailable(self):
+        workbook = load_workbook(self.path)
+        workbook["vInfo"].append(
+            [
+                "app-02", "poweredOn", False, 2, 4096, 10240, 5120,
+                False, "vmx-19", "notConfigured", "", "Ubuntu Linux",
+                "cluster-b", "esx-03",
+            ]
+        )
+        workbook["vHost"].append(
+            [
+                "esx-03", "cluster-b", "Intel Xeon Gold", "8.0.3", 20,
+                30, 16, 65536, "Dell Inc.", "PowerEdge R760", True, True,
+                2, 8, 2800, "Dell Inc.", "1.0", "2025-01-01",
+            ]
+        )
+        workbook["vCluster"].append(["cluster-b", 1])
+        workbook.save(self.path)
+        workbook.close()
+
+        result = PARSER.analyze_workbook(
+            self.path, target="avs", include_bom=True, target_region="eastus"
+        )
+
+        self.assertEqual(result["sizing"]["status"], "topology_selection_required")
+        self.assertEqual(result["bom"]["status"], "unavailable")
+        self.assertIn("topology", result["bom"]["message"])
 
     def test_multi_cluster_target_requires_a_topology_choice(self):
         workbook = load_workbook(self.path)

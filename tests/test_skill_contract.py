@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.5.0")
+        self.assertEqual(manifest["version"], "0.6.0")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -127,6 +127,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("codex plugin marketplace upgrade rvtools-analyzer", readme)
         self.assertIn("## What it can do", readme)
         self.assertIn("Estimate required VCF cores", readme)
+        self.assertIn("provider-specific bill of materials", readme)
         self.assertIn("$rvtools-analyzer", readme)
         self.assertIn("/rvtools:analyze", readme)
         self.assertIn("Python 3.8", readme)
@@ -154,6 +155,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("## [0.6.0] - 2026-09-12", changelog)
         self.assertIn("## [0.5.0] - 2026-09-11", changelog)
         self.assertIn("## [0.4.3] - 2026-09-09", changelog)
         self.assertIn("## [0.4.2] - 2026-08-14", changelog)
@@ -254,7 +256,7 @@ class SkillContractTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertEqual(template.count('class="report-section'), 9)
+        self.assertEqual(template.count('class="report-section'), 10)
         for slot in (
             "REPORT_TITLE",
             "LENS_LABEL",
@@ -269,6 +271,7 @@ class SkillContractTests(unittest.TestCase):
             "COVERAGE_GAPS",
             "METHOD_AND_SOURCES",
             "ACRONYM_GLOSSARY",
+            "BOM_TABLE",
             "SOURCE_IDENTITY",
         ):
             expected_count = 2 if slot == "REPORT_TITLE" else 1
@@ -276,6 +279,7 @@ class SkillContractTests(unittest.TestCase):
 
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         self.assertIn("Acronym glossary", skill)
+        self.assertIn("Bill of materials", skill)
         self.assertIn("Define only abbreviations used in the report", skill)
         for required in (
             "Assessment scope and coverage",
@@ -334,6 +338,7 @@ class SkillContractTests(unittest.TestCase):
             "hcx_avs.md",
             "hcx_gcve.md",
             "sizing.md",
+            "bom.md",
         ):
             self.assertTrue((ROOT / "references" / reference).is_file())
             self.assertIn(f"references/{reference}", skill)
@@ -367,6 +372,25 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("Python sizing result", common)
         self.assertIn("Oracle default sizing policy", ocvs)
         self.assertIn("two-host minimum", ocvs)
+
+    def test_cloud_bom_contract_uses_provider_pricing_without_guessing(self):
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        bom = (ROOT / "references" / "bom.md").read_text(encoding="utf-8")
+        contributing = (ROOT / "CONTRIBUTING.md").read_text(encoding="utf-8")
+
+        for required in (
+            "--include-bom",
+            "current-estate VCF",
+            "full physical silicon",
+            "unpriced",
+            "default currency is USD",
+            "Oracle pricing API",
+            "Azure Retail Prices API",
+            "Cloud Billing Catalog API",
+        ):
+            self.assertIn(required, skill + "\n" + bom)
+        self.assertIn("scripts/rvtools/bom.py", contributing)
+        self.assertIn("scripts/rvtools/pricing/", contributing)
 
     def test_cloud_sizing_requires_a_cluster_topology_choice_and_compares_both(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
