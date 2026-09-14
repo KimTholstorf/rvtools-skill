@@ -15,6 +15,7 @@ Run the parser with `--include-bom` after the sizing topology has been resolved.
 --pricing-model on_demand
 --target-region westeurope
 --vcf-entitlement-cores 4096
+--storage-headroom-percent 25
 ```
 
 For AVS with Azure Elastic SAN, also use `--storage-strategy elastic_san` and provide `--elastic-san-base-tib`. The base portion carries performance; the remaining required capacity is priced as capacity-only units. Do not invent that split. For OCVS, `--storage-vpu-per-gb` defaults to 10 and must be changed when the selected Block Volume performance level differs.
@@ -55,6 +56,8 @@ Category | GCVE component | Google SKU ID | Google SKU description | Service reg
 
 Place VMware licensing rows below the provider components. Do not include unpriced licensing rows in the cloud subtotal.
 
+Use the selected storage basis for the provider rows and first subtotal. When `bom.storage_growth_comparison.status` is `complete`, add exactly one row immediately below that subtotal. Label it **Comparison: subtotal with 25% storage allowance** and show both the additional monthly storage cost and `subtotal_with_growth`. This is a comparison only; it must not change the selected BOM. If storage is bundled with hosts or the storage lines are not all priced, explain why the comparison is unavailable instead of estimating it in prose.
+
 ## Price lookup behavior
 
 The adapters query the [Oracle pricing API](https://apexapps.oracle.com/pls/apex/cetools/api/v1/products/), [Azure Retail Prices API](https://learn.microsoft.com/en-us/rest/api/cost-management/retail-prices/azure-retail-prices), and [Google Cloud Billing Catalog API](https://cloud.google.com/billing/docs/reference/rest/v1/services.skus/list). Oracle and Azure allow anonymous price-list reads. Google requires `GOOGLE_CLOUD_API_KEY` or `GOOGLE_API_KEY` in the local environment.
@@ -67,7 +70,7 @@ Use three pricing states:
 - `partial`: at least one component is priced and at least one is not;
 - `unpriced`: quantities are complete but no component has a usable price.
 
-Never report a grand total for a partial BOM. Report the priced subtotal and name every unpriced line. API errors, missing credentials, ambiguous SKU matches, unsupported currencies, and missing regional rates must not fail the sizing report.
+Never report a grand total for a partial BOM. Report the priced subtotal and name every unpriced line. Do not show the 25% comparison subtotal unless all selected provider and separately billed storage lines needed for it are priced. API errors, missing credentials, ambiguous SKU matches, unsupported currencies, and missing regional rates must not fail the sizing report.
 
 Track quantity completeness separately. AVS or GCVE host-local vSAN remains `validation_required` until the selected node mix has been checked against a defined storage policy and usable-capacity model. In that state, a fully priced host list is still only a priced subtotal, not a complete design total.
 

@@ -120,6 +120,7 @@ class OciPricingAdapter:
                         "quantity": gib,
                         "billing_quantity": gib,
                         "billing_unit": "GiB month",
+                        "storage_growth_eligible": True,
                     },
                     {
                         "category": "Performance",
@@ -129,6 +130,7 @@ class OciPricingAdapter:
                         "quantity": gib * vpu_per_gb,
                         "billing_quantity": gib * vpu_per_gb,
                         "billing_unit": "performance unit month",
+                        "storage_growth_eligible": True,
                     },
                 ]
             )

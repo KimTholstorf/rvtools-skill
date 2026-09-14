@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -35,7 +36,7 @@ from rvtools.sizing import (
 )
 
 
-SCHEMA_VERSION = "4.0"
+SCHEMA_VERSION = "4.1"
 ANALYSIS_SHEETS = (
     "vHost",
     "vCluster",
@@ -960,6 +961,7 @@ def analyze_workbook(
     sizing_policy=DEFAULT_POLICY_ID,
     sizing_topology=None,
     primary_source_cluster=None,
+    storage_headroom_percent=None,
     include_bom=False,
     currency=DEFAULT_CURRENCY,
     pricing_model=DEFAULT_PRICING_MODEL,
@@ -976,6 +978,13 @@ def analyze_workbook(
         raise ValueError("currency must be a three-letter ISO code")
     if vcf_entitlement_cores is not None and float(vcf_entitlement_cores) < 0:
         raise ValueError("VCF entitlement cores cannot be negative")
+    if storage_headroom_percent is not None:
+        storage_headroom_percent = float(storage_headroom_percent)
+        if (
+            not math.isfinite(storage_headroom_percent)
+            or storage_headroom_percent < 0
+        ):
+            raise ValueError("storage headroom percent must be a non-negative number")
     path = Path(path)
     workbook = load_workbook(path, read_only=True, data_only=True)
     try:
@@ -1091,13 +1100,48 @@ def analyze_workbook(
         if resolved_topology is None and len(populated_source_clusters) <= 1:
             resolved_topology = "consolidated"
         if resolved_topology is None:
+            required_design_inputs = ["cluster_design"]
+            if storage_headroom_percent is None:
+                required_design_inputs.append("storage_basis")
             result["sizing"] = {
                 "status": "topology_selection_required",
                 "default_policy_id": sizing_policy,
                 "available_policy_ids": list(POLICIES),
                 "available_topologies": ["consolidated", "source_aligned"],
+                "available_cluster_designs": [
+                    {
+                        "id": "source_aligned",
+                        "label": "Retain the existing cluster structure",
+                    },
+                    {
+                        "id": "consolidated",
+                        "label": "Consolidate workloads into fewer clusters",
+                    },
+                ],
+                "available_storage_bases": [
+                    {
+                        "id": "provisioned",
+                        "label": "Use provisioned storage with no growth allowance",
+                        "headroom_percent": 0,
+                    },
+                    {
+                        "id": "provisioned_plus_growth",
+                        "label": "Include a specified storage growth allowance",
+                    },
+                ],
+                "required_design_inputs": required_design_inputs,
                 "source_clusters": populated_source_clusters,
-                "message": "Choose consolidated or source-aligned target clusters before generating the sizing result.",
+                "message": (
+                    "Choose whether to retain the existing cluster structure or "
+                    "consolidate workloads before generating the sizing result. "
+                    "If no storage basis was supplied, also choose provisioned storage "
+                    "as-is or specify a growth allowance."
+                    if storage_headroom_percent is None
+                    else (
+                        "Choose whether to retain the existing cluster structure or "
+                        "consolidate workloads before generating the sizing result."
+                    )
+                ),
             }
         else:
             try:
@@ -1109,6 +1153,7 @@ def analyze_workbook(
                     target_node=target_node,
                     target_cpu_vendor=target_cpu_vendor,
                     primary_source_cluster=primary_source_cluster,
+                    storage_headroom_percent=storage_headroom_percent,
                     prepared=prepared_sizing_input,
                 )
             except ValueError as exc:
@@ -1221,6 +1266,14 @@ def main(argv=None):
         help="Source cluster that should become the primary or unified-management target cluster",
     )
     parser.add_argument(
+        "--storage-headroom-percent",
+        type=float,
+        help=(
+            "Optional growth allowance above provisioned storage; omitted values "
+            "default to zero after the cluster design is resolved"
+        ),
+    )
+    parser.add_argument(
         "--include-bom",
         action="store_true",
         help="Append provider-specific BOM quantities and live list-price lookups to completed sizing",
@@ -1277,6 +1330,7 @@ def main(argv=None):
             sizing_policy=args.sizing_policy,
             sizing_topology=args.sizing_topology,
             primary_source_cluster=args.primary_source_cluster,
+            storage_headroom_percent=args.storage_headroom_percent,
             include_bom=args.include_bom,
             currency=args.currency,
             pricing_model=args.pricing_model,

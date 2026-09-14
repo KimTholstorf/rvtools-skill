@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from .targets import PROFILES, target_profile
@@ -39,7 +39,7 @@ POLICIES = {
         memory_headroom_percent=20.0,
         memory_is_binding=True,
         storage_scope="all_selected_vms_and_templates",
-        storage_headroom_percent=25.0,
+        storage_headroom_percent=0.0,
         failure_reserve_hosts=1,
     ),
     "active_only": CapacityPolicy(
@@ -119,16 +119,194 @@ def _round(value: float, digits: int = 4) -> float:
     return round(float(value), digits)
 
 
-def _policy_payload(policy: CapacityPolicy, target_id: str) -> Dict[str, Any]:
+def _policy_payload(
+    policy: CapacityPolicy, target_id: str, storage_headroom_source: str
+) -> Dict[str, Any]:
     payload = asdict(policy)
     payload["display_name"] = (
-        "Oracle default sizing policy"
+        "Recommended OCVS planning assumptions"
         if target_id == "ocvs" and policy.id == DEFAULT_POLICY_ID
-        else "Recommended sizing policy"
+        else "Recommended cloud sizing assumptions"
+        if target_id in {"avs", "gcve"} and policy.id == DEFAULT_POLICY_ID
+        else "Recommended sizing assumptions"
         if policy.id == DEFAULT_POLICY_ID
         else "Active-only sizing policy"
     )
+    payload["storage_basis"] = (
+        "provisioned_plus_growth"
+        if policy.storage_headroom_percent > 0
+        else "provisioned"
+    )
+    payload["storage_headroom_source"] = storage_headroom_source
     return payload
+
+
+def _recommendation_presentation(result: Mapping[str, Any]) -> Dict[str, Any]:
+    """Summarize technical host floors in language suited to a management report."""
+    workload_capacity = max(
+        int(result["normal_cpu_floor"]), int(result["normal_memory_floor"])
+    )
+    one_host_resilience = max(
+        int(result["failure_cpu_floor"]), int(result["failure_memory_floor"])
+    )
+    recommended = int(result["total_hosts"])
+    normal_cpu_drives = int(result["normal_cpu_floor"]) == recommended
+    normal_memory_drives = int(result["normal_memory_floor"]) == recommended
+
+    if normal_cpu_drives and normal_memory_drives:
+        driver = "Workload processing and memory capacity"
+    elif normal_memory_drives:
+        driver = "Workload memory capacity"
+    elif normal_cpu_drives:
+        driver = "Workload processing capacity"
+    else:
+        drivers = []
+        if one_host_resilience == recommended:
+            drivers.append("One-host resilience")
+        if int(result["provider_minimum_hosts"]) == recommended:
+            drivers.append("cloud service minimum")
+        driver = " and ".join(drivers) or "Workload capacity"
+        if driver == "cloud service minimum":
+            driver = "Cloud service minimum"
+
+    return {
+        "workload_capacity_hosts": workload_capacity,
+        "one_host_resilience_hosts": one_host_resilience,
+        "cloud_service_minimum_hosts": int(result["provider_minimum_hosts"]),
+        "recommended_hosts": recommended,
+        "what_determined_the_result": driver,
+    }
+
+
+def _storage_capacity_assessment(
+    rows: Mapping[str, Sequence[Mapping[str, Any]]],
+    provisioned_storage_tib: float,
+    source_clusters: Sequence[str],
+) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    """Compare provisioned demand with unique addressable datastore capacity."""
+    datastore_rows = list(rows.get("vDatastore", []))
+    if not datastore_rows:
+        return (
+            {
+                "status": "unavailable",
+                "reason": "vDatastore is absent or empty",
+                "provisioned_storage_tib": _round(provisioned_storage_tib, 4),
+            },
+            [],
+        )
+
+    unique_datastores: Dict[Tuple[str, str, str], float] = {}
+    unnamed_rows = 0
+    unscoped_rows = 0
+    rows_outside_scope = 0
+    included_rows = 0
+    source_cluster_keys = {_key(cluster) for cluster in source_clusters}
+    for row in datastore_rows:
+        name = _text(_value(row, "Name", "Datastore"))
+        capacity_mib = _number(_value(row, "Capacity MiB"))
+        if not name or capacity_mib <= 0:
+            unnamed_rows += 1
+            continue
+        cluster_text = _text(_value(row, "Cluster", "Cluster name"))
+        if cluster_text:
+            cluster_keys = {
+                _key(value)
+                for value in re.split(r"[;,|]", cluster_text)
+                if _key(value)
+            }
+            if cluster_keys and not cluster_keys.intersection(source_cluster_keys):
+                rows_outside_scope += 1
+                continue
+        else:
+            unscoped_rows += 1
+        included_rows += 1
+        vcenter = _text(_value(row, "VI SDK Server", "vCenter"))
+        datacenter = _text(_value(row, "Datacenter", "Data Center"))
+        identity = (vcenter.casefold(), datacenter.casefold(), name.casefold())
+        unique_datastores[identity] = max(
+            capacity_mib, unique_datastores.get(identity, 0.0)
+        )
+
+    if not unique_datastores:
+        return (
+            {
+                "status": "unavailable",
+                "reason": "No datastore row contains both a name and capacity",
+                "provisioned_storage_tib": _round(provisioned_storage_tib, 4),
+            },
+            [],
+        )
+
+    addressable_tib = sum(unique_datastores.values()) / MIB_PER_TIB
+    headroom_tib = addressable_tib - provisioned_storage_tib
+    headroom_percent = (
+        100 * headroom_tib / provisioned_storage_tib
+        if provisioned_storage_tib > 0
+        else None
+    )
+    assessment = {
+        "status": (
+            "complete" if unnamed_rows == 0 and unscoped_rows == 0 else "partial"
+        ),
+        "datastores_counted": len(unique_datastores),
+        "datastore_rows_deduplicated": included_rows - len(unique_datastores),
+        "datastore_rows_without_usable_capacity": unnamed_rows,
+        "datastore_rows_without_cluster_scope": unscoped_rows,
+        "datastore_rows_outside_scope": rows_outside_scope,
+        "addressable_storage_tib": _round(addressable_tib, 4),
+        "provisioned_storage_tib": _round(provisioned_storage_tib, 4),
+        "provisioning_headroom_tib": _round(headroom_tib, 4),
+        "provisioning_headroom_percent": (
+            _round(headroom_percent, 2) if headroom_percent is not None else None
+        ),
+        "finding_threshold_percent": 25.0,
+        "scope_note": (
+            "Unique datastores attributed to the selected populated source clusters; "
+            "rows without cluster evidence are included and disclosed as partial coverage."
+        ),
+    }
+    findings = []
+    if headroom_percent is not None and headroom_percent <= 25:
+        severity = (
+            "medium"
+            if headroom_percent <= 0
+            else "low"
+            if headroom_percent <= 10
+            else "information"
+        )
+        if headroom_tib < 0:
+            message = (
+                "Provisioned VM and template storage exceeds addressable datastore "
+                f"capacity by {_round(abs(headroom_tib), 4):g} TiB. Thin provisioning "
+                "can make this intentional, but the design needs usage and growth controls."
+            )
+        elif headroom_tib == 0:
+            message = (
+                "Provisioned VM and template storage matches addressable datastore "
+                "capacity, leaving no provisioning headroom."
+            )
+        else:
+            message = (
+                "Addressable datastore capacity provides "
+                f"{_round(headroom_percent, 2):g}% headroom above provisioned "
+                "VM and template storage. This is a design-planning indicator, "
+                "not proof of an immediate capacity shortage."
+            )
+        findings.append(
+            {
+                "id": "limited_storage_headroom",
+                "category": "storage_design",
+                "severity": severity,
+                "title": "Limited storage headroom",
+                "addressable_storage_tib": _round(addressable_tib, 4),
+                "provisioned_storage_tib": _round(provisioned_storage_tib, 4),
+                "provisioning_headroom_tib": _round(headroom_tib, 4),
+                "provisioning_headroom_percent": _round(headroom_percent, 2),
+                "coverage_status": assessment["status"],
+                "message": message,
+            }
+        )
+    return assessment, findings
 
 
 def _cluster_evidence(
@@ -396,6 +574,7 @@ def _candidate_result(
         ),
         "maximum_hosts_exceeded": total_hosts > maximum_hosts,
     }
+    result["presentation"] = _recommendation_presentation(result)
     result["valid"] = (
         not result["maximum_hosts_exceeded"]
         and result["largest_vm_memory_fits_one_host"]
@@ -548,6 +727,7 @@ def size_environment(
     target_node: Optional[str] = None,
     target_cpu_vendor: Optional[str] = None,
     primary_source_cluster: Optional[str] = None,
+    storage_headroom_percent: Optional[float] = None,
     prepared: Optional[Mapping[str, Any]] = None,
     target_profile_override: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -560,6 +740,19 @@ def size_environment(
     if topology not in {"consolidated", "source_aligned"}:
         raise ValueError(f"unknown sizing topology: {topology}")
     policy = POLICIES[policy_id]
+    storage_headroom_source = (
+        "user_selected" if storage_headroom_percent is not None else "default"
+    )
+    if storage_headroom_percent is not None:
+        storage_headroom_percent = float(storage_headroom_percent)
+        if (
+            not math.isfinite(storage_headroom_percent)
+            or storage_headroom_percent < 0
+        ):
+            raise ValueError("storage headroom percent must be a non-negative number")
+        policy = replace(
+            policy, storage_headroom_percent=storage_headroom_percent
+        )
     if target_profile_override is None and target_id not in PROFILES:
         raise ValueError(f"unknown sizing target: {target_id}")
     if topology == "source_aligned":
@@ -782,21 +975,50 @@ def size_environment(
             else None
         ),
     }
+    storage_capacity, design_findings = _storage_capacity_assessment(
+        rows, totals["provisioned_storage_tib"], source_clusters
+    )
+    if storage_capacity["status"] == "unavailable":
+        warnings.append(
+            {
+                "code": "datastore_capacity_unavailable",
+                "message": (
+                    "Addressable datastore capacity is unavailable, so provisioning "
+                    "headroom could not be assessed."
+                ),
+            }
+        )
+    elif storage_capacity["status"] == "partial":
+        warnings.append(
+            {
+                "code": "datastore_capacity_partial",
+                "message": (
+                    "Some datastore rows lacked cluster attribution or a usable name or "
+                    "capacity; the storage headroom result covers only the counted "
+                    "datastores and has partial scope confidence."
+                ),
+            }
+        )
     return {
         "status": (
             "complete"
             if all(row["status"] == "complete" for row in cluster_results)
             else "attention_required"
         ),
-        "engine_version": "1.0",
+        "engine_version": "1.1",
         "target": {
             "id": target_id,
             "name": profile["name"],
             "catalog_reviewed": profile["catalog_reviewed"],
         },
-        "policy": _policy_payload(policy, target_id),
+        "policy": _policy_payload(policy, target_id, storage_headroom_source),
         "topology": {
             "id": topology,
+            "display_name": (
+                "Retain the existing cluster structure"
+                if topology == "source_aligned"
+                else "Consolidate workloads into fewer clusters"
+            ),
             "source_clusters": source_clusters,
             "target_clusters": [row["target_cluster"] for row in cluster_results],
             "primary_target_cluster": primary_target,
@@ -804,5 +1026,7 @@ def size_environment(
         },
         "clusters": cluster_results,
         "totals": totals,
+        "storage_capacity": storage_capacity,
+        "design_findings": design_findings,
         "warnings": warnings,
     }

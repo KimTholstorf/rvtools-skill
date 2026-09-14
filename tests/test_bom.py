@@ -30,7 +30,14 @@ class BomBootstrapTests(unittest.TestCase):
         self.assertFalse(summary["entitlement_verified"])
 
 
-def sizing_result(target, recommendations, *, storage_required_tib=10.0):
+def sizing_result(
+    target,
+    recommendations,
+    *,
+    storage_required_tib=10.0,
+    provisioned_storage_tib=None,
+    storage_headroom_percent=0,
+):
     clusters = []
     for index, (node_type, shape_series, hosts, cores, memory) in enumerate(recommendations):
         clusters.append(
@@ -51,11 +58,17 @@ def sizing_result(target, recommendations, *, storage_required_tib=10.0):
     return {
         "status": "complete",
         "target": {"id": target, "name": target.upper()},
+        "policy": {"storage_headroom_percent": storage_headroom_percent},
         "clusters": clusters,
         "totals": {
             "total_hosts": sum(item[2] for item in recommendations),
             "vcf_licensable_cores": sum(item[2] * item[3] for item in recommendations),
             "storage_required_tib": storage_required_tib,
+            "provisioned_storage_tib": (
+                storage_required_tib
+                if provisioned_storage_tib is None
+                else provisioned_storage_tib
+            ),
         },
     }
 
@@ -144,6 +157,63 @@ class BomEngineTests(unittest.TestCase):
         self.assertEqual(result["priced_monthly_subtotal"], 7300.0)
         self.assertIsNone(result["priced_monthly_total"])
 
+    def test_bom_prices_a_25_percent_storage_comparison_below_the_selected_subtotal(self):
+        class StorageComparisonAdapter(FakeAdapter):
+            region_required = False
+
+            def component_specs(self, sizing, storage_plan=None):
+                return [
+                    {
+                        "category": "Compute",
+                        "component": "selected hosts",
+                        "sku": "compute",
+                        "quantity": 2,
+                        "billing_quantity": 2,
+                        "billing_unit": "host month",
+                    },
+                    {
+                        "category": "Storage",
+                        "component": "provisioned storage",
+                        "sku": "storage",
+                        "quantity": 8,
+                        "billing_quantity": 8,
+                        "billing_unit": "TiB month",
+                        "storage_growth_eligible": True,
+                    },
+                ]
+
+            def quote(self, spec, **kwargs):
+                return {
+                    "status": "priced",
+                    "unit_price": 1,
+                    "unit": spec["billing_unit"],
+                    "monthly_factor": 1,
+                }
+
+        sizing = sizing_result(
+            "ocvs",
+            [("BM.Standard3.64-64", "BM.Standard3.64", 3, 64, 1024)],
+            storage_required_tib=8,
+            provisioned_storage_tib=8,
+        )
+        storage_plan = self.bom.storage_plan_for_sizing(sizing)
+        result = self.bom.build_bom(
+            sizing,
+            adapter=StorageComparisonAdapter(),
+            storage_plan=storage_plan,
+        )
+
+        comparison = result["storage_growth_comparison"]
+        self.assertEqual(result["priced_monthly_subtotal"], 10)
+        self.assertEqual(comparison["status"], "complete")
+        self.assertEqual(comparison["growth_percent"], 25)
+        self.assertEqual(comparison["additional_storage_monthly"], 2)
+        self.assertEqual(comparison["subtotal_with_growth"], 12)
+        self.assertEqual(
+            comparison["report_row_label"],
+            "Comparison: subtotal with 25% storage allowance",
+        )
+
     def test_provider_storage_defaults_and_elastic_san_split_are_deterministic(self):
         ocvs = self.bom.storage_plan_for_sizing(
             sizing_result("ocvs", [("BM.Standard3.64-64", "BM.Standard3.64", 3, 64, 1024)], storage_required_tib=12.5)
@@ -159,6 +229,8 @@ class BomEngineTests(unittest.TestCase):
 
         self.assertEqual(ocvs["strategy"], "block_volume")
         self.assertEqual(ocvs["capacity_tib"], 12.5)
+        self.assertEqual(ocvs["provisioned_capacity_tib"], 12.5)
+        self.assertEqual(ocvs["selected_headroom_percent"], 0)
         self.assertEqual((avs["base_tib"], avs["capacity_tib"]), (28, 72))
         self.assertEqual(gcve["strategy"], "integrated_vsan")
         self.assertFalse(gcve["capacity_validated"])
@@ -240,6 +312,7 @@ class ProviderAdapterTests(unittest.TestCase):
                 ("B91962", 204800),
             ],
         )
+        self.assertTrue(all(row.get("storage_growth_eligible") for row in specs[-2:]))
 
         unpriced = oci.OciPricingAdapter(fetch_json=lambda *args, **kwargs: {}).table_row(
             specs[0],

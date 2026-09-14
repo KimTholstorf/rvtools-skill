@@ -75,6 +75,7 @@ class AzurePricingAdapter:
                         "quantity": amount,
                         "billing_quantity": amount * 1024,
                         "billing_unit": "GiB month",
+                        "storage_growth_eligible": True,
                     }
                 )
         return specs

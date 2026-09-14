@@ -118,9 +118,9 @@ class MigrationAssessmentTests(unittest.TestCase):
             gate for gate in avs["manual_gates"] if gate["id"] == "performance_sizing"
         )
         for required in (
-            "deterministic sizing policy",
-            "normal-operation headroom",
-            "one-host-loss capacity",
+            "selected planning assumptions",
+            "operating headroom",
+            "one host unavailable",
             "largest-VM fit",
         ):
             self.assertIn(required, sizing_gate["evidence"])

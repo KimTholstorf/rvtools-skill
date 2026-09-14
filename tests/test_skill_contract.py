@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.6.0")
+        self.assertEqual(manifest["version"], "0.6.1")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -155,6 +155,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("## [0.6.1] - 2026-09-14", changelog)
         self.assertIn("## [0.6.0] - 2026-09-12", changelog)
         self.assertIn("## [0.5.0] - 2026-09-11", changelog)
         self.assertIn("## [0.4.3] - 2026-09-09", changelog)
@@ -365,12 +366,13 @@ class SkillContractTests(unittest.TestCase):
             "20% normal-operation CPU headroom",
             "20% normal-operation memory headroom",
             "one-host-loss CPU and memory validation",
-            "25% storage headroom",
+            "provisioned storage with no automatic growth allowance",
+            "Limited storage headroom",
             "Use `active_only` only when the user deliberately selects it",
         ):
             self.assertIn(required, sizing)
         self.assertIn("Python sizing result", common)
-        self.assertIn("Oracle default sizing policy", ocvs)
+        self.assertIn("Recommended OCVS planning assumptions", ocvs)
         self.assertIn("two-host minimum", ocvs)
 
     def test_cloud_bom_contract_uses_provider_pricing_without_guessing(self):
@@ -395,13 +397,14 @@ class SkillContractTests(unittest.TestCase):
     def test_cloud_sizing_requires_a_cluster_topology_choice_and_compares_both(self):
         skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
         common = (ROOT / "references" / "hcx_common.md").read_text(encoding="utf-8")
+        sizing = (ROOT / "references" / "sizing.md").read_text(encoding="utf-8")
 
         for required in (
-            "Consolidated target",
-            "Source-aligned target",
+            "Consolidate workloads into fewer clusters",
+            "Retain the existing cluster structure",
             "Do not begin a multi-cluster sizing report until the user chooses",
             "one target cluster for each populated source cluster",
-            "brief view of the unselected topology",
+            "What consolidation would change",
             "target-cluster count",
             "purchased hosts",
             "VCF-core obligation",
@@ -409,15 +412,35 @@ class SkillContractTests(unittest.TestCase):
             self.assertIn(required, common)
 
         self.assertIn(
-            "ask the user to choose consolidated or source-aligned target clusters",
+            "ask whether to retain the existing cluster structure or consolidate workloads",
             skill,
         )
         self.assertIn("primary sizing recommendation", skill)
-        self.assertIn("reverse-topology comparison", skill)
+        self.assertIn("What consolidation would change", skill)
+
+        for wording in (
+            "How the host recommendation was determined",
+            "Workload capacity",
+            "One-host resilience",
+            "Cloud service minimum",
+            "What determined the result",
+            "Storage capacity and service limits",
+            "CPU compatibility and migration options",
+            "What the estimate includes",
+        ):
+            self.assertIn(wording, skill + "\n" + sizing + "\n" + common)
+
+        self.assertIn(
+            "Do not expose `source_aligned`, “reverse topology,” “floor,” “binding constraint,” “CPU host-loss,” “RAM host-loss,” or “deterministic Pareto”",
+            skill,
+        )
 
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
-        self.assertIn("asks whether to consolidate", readme)
-        self.assertIn("It does not assume consolidation", readme)
+        self.assertIn(
+            "asks whether to retain the existing cluster structure or consolidate workloads",
+            readme,
+        )
+        self.assertIn("unspecified storage defaults to provisioned capacity", readme)
 
     def test_public_readme_mentions_avs_and_gcve_migration_analysis(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

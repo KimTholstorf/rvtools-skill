@@ -1,6 +1,6 @@
 {
   "name": "rvtools",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Analyze VMware RVTools exports for cloud migration, deterministic sizing, provider BOMs, VCF, and vSphere health.",
   "author": {
     "name": "Kim Tholstorf",

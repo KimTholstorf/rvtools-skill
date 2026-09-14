@@ -186,7 +186,7 @@ COMMON_GATES = (
     },
     {
         "id": "performance_sizing",
-        "evidence": "Validate the selected deterministic sizing policy, normal-operation headroom, one-host-loss capacity, largest-VM fit, and storage design against sustained CPU, memory, storage, and network history.",
+        "evidence": "Validate the selected planning assumptions, operating headroom, continued operation with one host unavailable, largest-VM fit, and storage design against sustained CPU, memory, storage, and network history.",
     },
 )
 

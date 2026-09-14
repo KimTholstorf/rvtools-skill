@@ -25,7 +25,7 @@ PARSER_SPEC.loader.exec_module(RVTOOLS)
 
 from rvtools.licensing import host_core_requirement
 
-INDEX_SCHEMA_VERSION = "8"
+INDEX_SCHEMA_VERSION = "9"
 INDEXED_SHEETS = (
     "vInfo",
     "vHost",
@@ -254,6 +254,11 @@ ENTITY_SCHEMAS = {
         "provisioned_storage_tib": "REAL",
         "in_use_storage_tib": "REAL",
         "storage_required_tib": "REAL",
+        "storage_headroom_percent": "REAL",
+        "addressable_storage_tib": "REAL",
+        "provisioning_headroom_tib": "REAL",
+        "provisioning_headroom_percent": "REAL",
+        "storage_design_finding_severity": "TEXT",
         "total_hosts": "INTEGER",
         "vcf_licensable_cores": "REAL",
     },
@@ -278,6 +283,10 @@ ENTITY_SCHEMAS = {
         "normal_memory_floor": "INTEGER",
         "failure_cpu_floor": "INTEGER",
         "failure_memory_floor": "INTEGER",
+        "workload_capacity_hosts": "INTEGER",
+        "one_host_resilience_hosts": "INTEGER",
+        "cloud_service_minimum_hosts": "INTEGER",
+        "what_determined_the_result": "TEXT",
         "total_hosts": "INTEGER",
         "binding_constraints": "TEXT",
         "normal_cpu_utilization_percent": "REAL",
@@ -376,7 +385,10 @@ DEFAULT_SELECT = {
         "compute_vms",
         "configured_vcpus",
         "configured_memory_gib",
+        "provisioned_storage_tib",
         "storage_required_tib",
+        "addressable_storage_tib",
+        "provisioning_headroom_percent",
         "total_hosts",
         "vcf_licensable_cores",
     ),
@@ -390,8 +402,9 @@ DEFAULT_SELECT = {
         "vcpus",
         "memory_gib",
         "provider_minimum_hosts",
-        "failure_cpu_floor",
-        "failure_memory_floor",
+        "workload_capacity_hosts",
+        "one_host_resilience_hosts",
+        "what_determined_the_result",
         "total_hosts",
         "one_host_loss_validated",
         "vcf_licensable_cores",
@@ -884,6 +897,8 @@ def _build_index(connection, workbook_path, digest):
                         message = f"{message} Affected inventory objects: {warning['count']}."
                     sizing_runtime_warnings.add((warning["code"], message))
                 totals = sizing["totals"]
+                storage_capacity = sizing.get("storage_capacity", {})
+                storage_findings = sizing.get("design_findings", [])
                 sizing_summaries.append(
                     {
                         "target": target_id,
@@ -905,6 +920,23 @@ def _build_index(connection, workbook_path, digest):
                         "provisioned_storage_tib": totals["provisioned_storage_tib"],
                         "in_use_storage_tib": totals["in_use_storage_tib"],
                         "storage_required_tib": totals["storage_required_tib"],
+                        "storage_headroom_percent": sizing["policy"][
+                            "storage_headroom_percent"
+                        ],
+                        "addressable_storage_tib": storage_capacity.get(
+                            "addressable_storage_tib"
+                        ),
+                        "provisioning_headroom_tib": storage_capacity.get(
+                            "provisioning_headroom_tib"
+                        ),
+                        "provisioning_headroom_percent": storage_capacity.get(
+                            "provisioning_headroom_percent"
+                        ),
+                        "storage_design_finding_severity": (
+                            storage_findings[0].get("severity")
+                            if storage_findings
+                            else None
+                        ),
                         "total_hosts": totals["total_hosts"],
                         "vcf_licensable_cores": totals["vcf_licensable_cores"],
                     }
@@ -912,6 +944,7 @@ def _build_index(connection, workbook_path, digest):
                 for cluster in sizing["clusters"]:
                     demand = cluster["demand"]
                     recommendation = cluster["recommendation"] or {}
+                    presentation = recommendation.get("presentation", {})
                     sizing_clusters.append(
                         {
                             "target": target_id,
@@ -945,6 +978,18 @@ def _build_index(connection, workbook_path, digest):
                             ),
                             "failure_memory_floor": recommendation.get(
                                 "failure_memory_floor"
+                            ),
+                            "workload_capacity_hosts": presentation.get(
+                                "workload_capacity_hosts"
+                            ),
+                            "one_host_resilience_hosts": presentation.get(
+                                "one_host_resilience_hosts"
+                            ),
+                            "cloud_service_minimum_hosts": presentation.get(
+                                "cloud_service_minimum_hosts"
+                            ),
+                            "what_determined_the_result": presentation.get(
+                                "what_determined_the_result"
                             ),
                             "total_hosts": recommendation.get("total_hosts"),
                             "binding_constraints": ",".join(

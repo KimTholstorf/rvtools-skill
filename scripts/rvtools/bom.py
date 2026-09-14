@@ -21,7 +21,16 @@ def storage_plan_for_sizing(
 ):
     """Resolve the storage components that belong in a provider BOM."""
     target = sizing.get("target", {}).get("id")
-    required_tib = float(sizing.get("totals", {}).get("storage_required_tib") or 0)
+    totals = sizing.get("totals", {})
+    required_tib = float(totals.get("storage_required_tib") or 0)
+    provisioned_tib = float(totals.get("provisioned_storage_tib") or required_tib)
+    selected_headroom_percent = float(
+        sizing.get("policy", {}).get("storage_headroom_percent") or 0
+    )
+    common = {
+        "provisioned_capacity_tib": provisioned_tib,
+        "selected_headroom_percent": selected_headroom_percent,
+    }
     if target == "ocvs":
         if strategy not in (None, "provider_default", "block_volume"):
             raise ValueError("OCVS BOM storage strategy must be block_volume")
@@ -29,6 +38,7 @@ def storage_plan_for_sizing(
         if vpu_per_gb < 0:
             raise ValueError("OCI Block Volume performance units cannot be negative")
         return {
+            **common,
             "strategy": "block_volume",
             "capacity_tib": required_tib,
             "vpu_per_gb": vpu_per_gb,
@@ -38,6 +48,7 @@ def storage_plan_for_sizing(
     if target == "avs":
         if strategy in (None, "provider_default", "integrated_vsan"):
             return {
+                **common,
                 "strategy": "integrated_vsan",
                 "capacity_tib": required_tib,
                 "capacity_validated": False,
@@ -54,6 +65,7 @@ def storage_plan_for_sizing(
         if base_tib < 0 or base_tib > required_tib:
             raise ValueError("Elastic SAN base capacity must be between zero and required storage")
         return {
+            **common,
             "strategy": "elastic_san",
             "redundancy": redundancy,
             "base_tib": base_tib,
@@ -68,6 +80,7 @@ def storage_plan_for_sizing(
                 "GCVE storage-only BOM quantities must be supplied by a validated storage design"
             )
         return {
+            **common,
             "strategy": "integrated_vsan",
             "capacity_tib": required_tib,
             "capacity_validated": False,
@@ -78,6 +91,56 @@ def storage_plan_for_sizing(
 
 def _round(value):
     return round(float(value), 6)
+
+
+def _storage_growth_comparison(lines, *, subtotal, all_priced, storage_plan):
+    """Price a 25% storage allowance without changing the selected BOM."""
+    label = "Comparison: subtotal with 25% storage allowance"
+    eligible = [line for line in lines if line.get("storage_growth_eligible")]
+    if not eligible:
+        return {
+            "status": "unavailable",
+            "growth_percent": 25.0,
+            "report_row_label": label,
+            "reason": "No separately priced storage line is available for this design.",
+        }
+    if not all_priced or subtotal is None or any(
+        line.get("estimated_monthly") is None for line in eligible
+    ):
+        return {
+            "status": "unavailable",
+            "growth_percent": 25.0,
+            "report_row_label": label,
+            "reason": (
+                "Every selected provider and storage line must be priced before "
+                "calculating a comparison subtotal."
+            ),
+        }
+
+    selected_percent = float(
+        (storage_plan or {}).get("selected_headroom_percent") or 0
+    )
+    selected_factor = 1 + selected_percent / 100
+    selected_storage_monthly = sum(
+        float(line["estimated_monthly"]) for line in eligible
+    )
+    provisioned_storage_monthly = selected_storage_monthly / selected_factor
+    additional_storage_monthly = provisioned_storage_monthly * 0.25
+    non_storage_monthly = float(subtotal) - selected_storage_monthly
+    subtotal_with_growth = non_storage_monthly + provisioned_storage_monthly * 1.25
+    return {
+        "status": "complete",
+        "growth_percent": 25.0,
+        "selected_storage_headroom_percent": selected_percent,
+        "provisioned_storage_monthly": _round(provisioned_storage_monthly),
+        "additional_storage_monthly": _round(additional_storage_monthly),
+        "subtotal_with_growth": _round(subtotal_with_growth),
+        "report_row_label": label,
+        "note": (
+            "Comparison only; the selected BOM remains based on its stated "
+            "storage allowance."
+        ),
+    }
 
 
 def _licensing(sizing, current_vcf_cores, current_entitlement_verified):
@@ -237,6 +300,7 @@ def build_bom(
             "price_effective_at": quote.get("effective_at"),
             "price_source_url": quote.get("source_url"),
             "provider_fields": quote.get("provider_fields", {}),
+            "storage_growth_eligible": bool(spec.get("storage_growth_eligible")),
         }
         lines.append(line)
         if hasattr(adapter, "table_row"):
@@ -285,8 +349,14 @@ def build_bom(
         if hasattr(adapter, "columns_for")
         else list(adapter.columns)
     )
+    storage_growth_comparison = _storage_growth_comparison(
+        lines,
+        subtotal=subtotal,
+        all_priced=all_priced,
+        storage_plan=storage_plan,
+    )
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "status": status,
         "pricing_status": pricing_status,
         "quantity_status": quantity_status,
@@ -304,6 +374,7 @@ def build_bom(
         "priced_monthly_total": (
             subtotal if all_priced and quantity_status == "complete" else None
         ),
+        "storage_growth_comparison": storage_growth_comparison,
         "table": {
             "columns": list(table_columns),
             "rows": table_rows,

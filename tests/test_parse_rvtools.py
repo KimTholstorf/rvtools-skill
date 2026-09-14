@@ -176,7 +176,7 @@ class ParseInventoryTests(unittest.TestCase):
     def test_extracts_normalized_inventory_and_capacity(self):
         result = PARSER.analyze_workbook(self.path)
 
-        self.assertEqual(result["schema_version"], "4.0")
+        self.assertEqual(result["schema_version"], "4.1")
         self.assertEqual(result["source"]["file"], self.path.name)
         self.assertEqual(result["source"]["rvtools_version"], "4.7.1")
         self.assertEqual(result["inventory"]["vms"], 2)
@@ -542,7 +542,7 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertTrue(completed.stdout.strip())
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["schema_version"], "4.0")
+        self.assertEqual(payload["schema_version"], "4.1")
         self.assertTrue(all(len(item["examples"]) <= 1 for item in payload["detections"]))
 
     def test_adds_a_selected_target_migration_assessment(self):
@@ -569,6 +569,27 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(result["sizing"]["topology"]["primary_target_cluster"], "cluster-a")
         by_vm = {row["vm"]: row for row in result["migration"]["vm_methods"]}
         self.assertEqual(by_vm["db-ora-01"]["methods"]["rav"]["status"], "blocked")
+
+    def test_explicit_topology_defaults_storage_to_provisioned_without_growth(self):
+        result = PARSER.analyze_workbook(
+            self.path,
+            target="ocvs",
+            sizing_topology="source_aligned",
+        )
+
+        self.assertEqual(result["sizing"]["policy"]["storage_headroom_percent"], 0)
+        self.assertEqual(result["sizing"]["policy"]["storage_headroom_source"], "default")
+
+    def test_explicit_storage_growth_is_forwarded_to_the_sizing_engine(self):
+        result = PARSER.analyze_workbook(
+            self.path,
+            target="ocvs",
+            sizing_topology="source_aligned",
+            storage_headroom_percent=25,
+        )
+
+        self.assertEqual(result["sizing"]["policy"]["storage_headroom_percent"], 25)
+        self.assertEqual(result["sizing"]["policy"]["storage_headroom_source"], "user_selected")
 
     def test_can_append_a_provider_bom_to_a_completed_sizing_result(self):
         class Adapter:
@@ -694,6 +715,34 @@ class ParseInventoryTests(unittest.TestCase):
             result["sizing"]["available_topologies"],
             ["consolidated", "source_aligned"],
         )
+        self.assertEqual(
+            result["sizing"]["required_design_inputs"],
+            ["cluster_design", "storage_basis"],
+        )
+        self.assertIn("retain the existing cluster structure", result["sizing"]["message"])
+        self.assertIn("growth allowance", result["sizing"]["message"])
+
+    def test_cli_accepts_an_explicit_storage_growth_allowance(self):
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(MODULE_PATH),
+                str(self.path),
+                "--target",
+                "ocvs",
+                "--sizing-topology",
+                "source_aligned",
+                "--storage-headroom-percent",
+                "25",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        payload = json.loads(completed.stdout)
+        self.assertEqual(payload["sizing"]["policy"]["storage_headroom_percent"], 25)
 
     def test_cli_accepts_a_migration_target(self):
         completed = subprocess.run(

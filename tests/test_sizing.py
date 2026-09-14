@@ -91,6 +91,120 @@ class SizingEngineTests(unittest.TestCase):
             all(row["recommendation"]["one_host_loss_validated"] for row in result["clusters"])
         )
 
+    def test_recommended_policy_defaults_to_provisioned_storage_without_growth(self):
+        rows = {
+            "vInfo": workload_rows("cluster-a", 2, 8, 16),
+            "vHost": [{"Host": "host-a", "Cluster": "cluster-a"}],
+        }
+
+        result = self.sizing.size_environment(rows, "ocvs", topology="consolidated")
+
+        self.assertEqual(result["policy"]["storage_headroom_percent"], 0)
+        self.assertEqual(result["policy"]["storage_basis"], "provisioned")
+        self.assertEqual(
+            result["totals"]["storage_required_tib"],
+            result["totals"]["provisioned_storage_tib"],
+        )
+
+    def test_explicit_storage_growth_override_is_recorded_and_applied(self):
+        rows = {
+            "vInfo": workload_rows("cluster-a", 4, 8, 16),
+            "vHost": [{"Host": "host-a", "Cluster": "cluster-a"}],
+        }
+
+        result = self.sizing.size_environment(
+            rows,
+            "ocvs",
+            topology="consolidated",
+            storage_headroom_percent=25,
+        )
+
+        self.assertEqual(result["policy"]["storage_headroom_percent"], 25)
+        self.assertEqual(result["policy"]["storage_basis"], "provisioned_plus_growth")
+        self.assertEqual(result["policy"]["storage_headroom_source"], "user_selected")
+        self.assertEqual(
+            result["totals"]["storage_required_tib"],
+            round(result["totals"]["provisioned_storage_tib"] * 1.25, 4),
+        )
+
+    def test_storage_headroom_finding_uses_addressable_capacity(self):
+        rows = {
+            "vInfo": [
+                {
+                    **workload_rows("cluster-a", 1, 4, 8)[0],
+                    "Provisioned MiB": 1600 * 1024 * 1024,
+                }
+            ],
+            "vHost": [{"Host": "host-a", "Cluster": "cluster-a"}],
+            "vDatastore": [
+                {
+                    "Name": "shared-ds",
+                    "VI SDK Server": "vc-a",
+                    "Cluster name": "cluster-a",
+                    "Capacity MiB": 1800 * 1024 * 1024,
+                },
+                {
+                    "Name": "shared-ds",
+                    "VI SDK Server": "vc-a",
+                    "Cluster name": "cluster-a",
+                    "Capacity MiB": 1800 * 1024 * 1024,
+                },
+            ],
+        }
+
+        result = self.sizing.size_environment(rows, "ocvs", topology="consolidated")
+
+        self.assertEqual(result["storage_capacity"]["status"], "complete")
+        self.assertEqual(result["storage_capacity"]["datastores_counted"], 1)
+        self.assertEqual(result["storage_capacity"]["addressable_storage_tib"], 1800)
+        self.assertEqual(result["storage_capacity"]["provisioning_headroom_tib"], 200)
+        self.assertEqual(result["storage_capacity"]["provisioning_headroom_percent"], 12.5)
+        self.assertEqual(result["design_findings"][0]["id"], "limited_storage_headroom")
+        self.assertEqual(result["design_findings"][0]["severity"], "information")
+
+    def test_storage_headroom_severity_increases_when_margin_is_tighter(self):
+        base_vm = workload_rows("cluster-a", 1, 4, 8)[0]
+        base_vm["Provisioned MiB"] = 100 * 1024 * 1024
+        for capacity_tib, expected in ((108, "low"), (100, "medium"), (90, "medium")):
+            with self.subTest(capacity_tib=capacity_tib):
+                rows = {
+                    "vInfo": [base_vm],
+                    "vHost": [{"Host": "host-a", "Cluster": "cluster-a"}],
+                    "vDatastore": [
+                        {
+                            "Name": "ds-a",
+                            "Cluster name": "cluster-a",
+                            "Capacity MiB": capacity_tib * 1024 * 1024,
+                        }
+                    ],
+                }
+                result = self.sizing.size_environment(
+                    rows, "ocvs", topology="consolidated"
+                )
+                self.assertEqual(result["design_findings"][0]["severity"], expected)
+
+    def test_recommendation_includes_management_facing_host_count_fields(self):
+        rows = {
+            "vInfo": workload_rows("cluster-a", 1, 4, 8),
+            "vHost": [{"Host": "host-a", "Cluster": "cluster-a"}],
+        }
+
+        result = self.sizing.size_environment(
+            rows, "ocvs", topology="source_aligned"
+        )
+        presentation = result["clusters"][0]["recommendation"]["presentation"]
+
+        self.assertEqual(presentation["workload_capacity_hosts"], 1)
+        self.assertEqual(presentation["one_host_resilience_hosts"], 2)
+        self.assertEqual(presentation["cloud_service_minimum_hosts"], 3)
+        self.assertEqual(presentation["recommended_hosts"], 3)
+        self.assertEqual(
+            presentation["what_determined_the_result"], "Cloud service minimum"
+        )
+        self.assertEqual(
+            result["topology"]["display_name"], "Retain the existing cluster structure"
+        )
+
     def test_provider_minimum_is_not_blindly_incremented_for_failure_reserve(self):
         rows = {
             "vInfo": workload_rows("Primary", 1, 4, 8)
@@ -118,6 +232,12 @@ class SizingEngineTests(unittest.TestCase):
         self.assertEqual(by_cluster["Small workload"]["recommendation"]["total_hosts"], 2)
         self.assertEqual(
             by_cluster["Small workload"]["recommendation"]["failure_cpu_floor"], 2
+        )
+        self.assertEqual(
+            by_cluster["Small workload"]["recommendation"]["presentation"][
+                "what_determined_the_result"
+            ],
+            "One-host resilience and cloud service minimum",
         )
 
     def test_failure_capacity_can_raise_count_above_provider_minimum(self):
@@ -177,9 +297,15 @@ class SizingEngineTests(unittest.TestCase):
         avs = self.sizing.size_environment(rows, "avs", topology="consolidated")
         gcve = self.sizing.size_environment(rows, "gcve", topology="consolidated")
 
-        self.assertEqual(ocvs["policy"]["display_name"], "Oracle default sizing policy")
-        self.assertEqual(avs["policy"]["display_name"], "Recommended sizing policy")
-        self.assertEqual(gcve["policy"]["display_name"], "Recommended sizing policy")
+        self.assertEqual(
+            ocvs["policy"]["display_name"], "Recommended OCVS planning assumptions"
+        )
+        self.assertEqual(
+            avs["policy"]["display_name"], "Recommended cloud sizing assumptions"
+        )
+        self.assertEqual(
+            gcve["policy"]["display_name"], "Recommended cloud sizing assumptions"
+        )
         self.assertNotIn("Oracle", str(avs))
         self.assertNotIn("Oracle", str(gcve))
 
@@ -221,7 +347,7 @@ class SizingEngineTests(unittest.TestCase):
         )
 
         self.assertEqual(result["target"]["id"], "vcf")
-        self.assertEqual(result["policy"]["display_name"], "Recommended sizing policy")
+        self.assertEqual(result["policy"]["display_name"], "Recommended sizing assumptions")
         self.assertEqual(result["clusters"][0]["role"], "management_domain")
         self.assertEqual(result["clusters"][0]["recommendation"]["node_type"], "customer-bom-node")
         self.assertNotIn("Oracle", str(result))

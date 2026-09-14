@@ -86,11 +86,11 @@ Please preserve these project rules:
 Maintainers publish a release by committing the finished change, creating a matching semantic-version tag, and pushing the branch and tag together. The version in both plugin manifests must match the tag.
 
 ```bash
-git tag -a v0.6.0 -m "RVTools Analyzer 0.6.0"
-git push --atomic origin main v0.6.0
+git tag -a v0.6.1 -m "RVTools Analyzer 0.6.1"
+git push --atomic origin main v0.6.1
 ```
 
-Replace `0.6.0` with the release being published. After CI passes for that exact commit, the separate release workflow builds the Claude Desktop ZIP from `SKILL.md`, `assets/`, `references/`, and `scripts/`, validates its contents, and attaches it to the GitHub release.
+Replace `0.6.1` with the release being published. After CI passes for that exact commit, the separate release workflow builds the Claude Desktop ZIP from `SKILL.md`, `assets/`, `references/`, and `scripts/`, validates its contents, and attaches it to the GitHub release.
 
 ## Pull-request checklist
 

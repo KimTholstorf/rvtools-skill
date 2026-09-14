@@ -51,15 +51,17 @@ Assess this RVTools export for an OCVS migration using HCX and create an HTML re
 
 ## Cloud VMware sizing
 
-Sizing for OCVS, AVS, and GCVE now comes from a shared Python engine, so the same workbook and assumptions produce the same result in Claude and Codex. It calculates each cluster’s CPU, memory, one-host-loss capacity, provider minimum, storage demand, and full-silicon VCF requirement. The report shows which constraint set the final host count instead of simply adding an N+1 host to every cluster.
+Sizing for OCVS, AVS, and GCVE comes from a shared Python engine, so the same workbook and assumptions produce the same result in Claude and Codex. The report explains the recommendation in business terms: the hosts needed for the workload, the hosts needed to keep running when one is unavailable, the cloud service minimum, and what ultimately determined the result. Detailed CPU and memory calculations remain available for technical review.
 
-The recommended policy includes all non-template workloads, regardless of power state. It uses a 4:1 vCPU-to-physical-core ratio, 20% CPU and memory headroom, configured memory as a sizing constraint, one-host-loss validation, and 25% headroom on provisioned storage. OCVS reports call this the Oracle default sizing policy. AVS and GCVE reports call it the recommended sizing policy.
+The recommended planning assumptions include all non-template workloads, regardless of power state. They use a 4:1 vCPU-to-physical-core ratio, 20% CPU and memory headroom, configured memory as a sizing constraint, and a check that the workloads still fit when one host is unavailable. Storage defaults to the capacity already provisioned to VMs and templates; no growth allowance is added unless you request one.
 
-If you want a leaner estimate, ask for the active-only policy. That option sizes compute from powered-on, non-template VMs, applies no generic CPU or memory headroom, and allows aggregate memory overcommit. It still checks one-host-loss CPU capacity and whether the largest VM fits on a host. The selected policy is always named in the result.
+If you want a leaner estimate, ask for the active-only policy. That option sizes compute from powered-on, non-template VMs, applies no generic CPU or memory headroom, and allows aggregate memory overcommit. It still checks that processing demand fits when one host is unavailable and that the largest VM fits on a host. The selected assumptions are always named in the result.
 
-If the scope contains several source clusters, the skill asks whether to consolidate them into fewer target clusters or keep one target cluster for each source cluster. It sizes the chosen layout in detail and adds a short comparison of the other option, including the difference in cluster count, purchased hosts, N+1 capacity, and VCF cores. It does not assume consolidation on the user's behalf.
+If the scope contains several clusters, the skill asks whether to retain the existing cluster structure or consolidate workloads into fewer target clusters. If you have not chosen a storage basis either, it asks whether to use provisioned storage as-is or add a specific growth allowance. Once the cluster design is known, unspecified storage defaults to provisioned capacity. The report sizes the selected design in detail and shows what consolidation would change, including the difference in cluster count, purchased hosts, resilience capacity, and VCF licences.
 
-When no node type is supplied, the engine compares valid choices and selects a practical trade-off between host count and full-silicon VCF cores. That is a planning recommendation, not a price quote. Region, availability, quota, workload performance, and commercial terms still need checking before purchase.
+The storage section compares provisioned storage with the addressable datastore capacity reported by RVTools. When the remaining provisioning headroom is 25% or less, the report calls it out as a non-critical design finding. A priced BOM uses the selected storage basis for its subtotal and, where storage is billed separately, adds one comparison line showing the monthly total with a 25% storage allowance.
+
+When no host type is supplied, the engine compares valid choices and selects a practical trade-off between host count and VCF licences measured in physical cores. This is a planning recommendation, not a price quote. Region, availability, quota, workload performance, and commercial terms still need checking before purchase.
 
 A sizing report can finish with a provider-specific bill of materials. OCVS uses part numbers and currency-specific rates from Oracle's public price list, while AVS and GCVE keep the product, SKU, meter, region, and billing fields returned by their own catalogs. If a rate is missing or ambiguous, the report keeps the quantities and marks the line unpriced instead of filling the gap with a guess. The same table shows the current-estate VCF requirement, the target requirement, and any additional or surplus cores. Google price lookups need a local `GOOGLE_CLOUD_API_KEY`; without one, the GCVE quantities are still reported but left unpriced.
 
@@ -161,7 +163,8 @@ Attach an RVTools `.xlsx` export, or provide its local path, and ask something l
 - “How many VMs are eligible for Bulk Migration to AVS, grouped by cluster?”
 - “Assess this estate for Google Cloud VMware Engine (GCVE), and compare the suitable node types.”
 - “Show the CPU, memory, and raw storage for GCVE ve2-standard-128.”
-- “Size this estate for OCVS with the recommended policy and preserve the populated source clusters.”
+- “Size this estate for OCVS with the recommended assumptions and retain the existing populated cluster structure.”
+- “Use provisioned storage as-is, but show what a 25% storage allowance would add to the monthly estimate.”
 - “Show how the OCVS result changes with active-only sizing.”
 - “Create an OCVS sizing report with a provider-specific bill of materials in EUR.”
 - “Price this AVS sizing in West Europe and show which lines could not be priced.”

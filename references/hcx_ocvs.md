@@ -69,7 +69,7 @@ Oracle's OCVS HCX component guide identifies the required source network profile
 - Treat `vm_cpu_large`, `vm_memory_large`, and `vm_provisioned_storage_large` as design-review flags only. The parser's provisioned-storage threshold is 10 TiB and is a migration-duration triage rule, not an OCVS maximum.
 - Use sustained performance history, not one RVTools sample, for target sizing.
 - Re-check the live OCVS shape table when the user requests current sizing; Oracle changes available shapes and software bundles over time.
-- Follow the deterministic policy in [sizing.md](sizing.md). Use the Oracle default sizing policy unless the user deliberately selects active-only sizing or supplies different assumptions. Distinguish the three-host unified-management minimum from the two-host minimum for standard workload clusters.
+- Follow the deterministic policy in [sizing.md](sizing.md). Use **Recommended OCVS planning assumptions** unless the user deliberately selects active-only sizing or supplies different assumptions. Distinguish the three-host unified-management minimum from the two-host minimum for standard workload clusters.
 
 Current OCVS shape and cluster characteristics are maintained in [Overview of Oracle Cloud VMware Solution](https://docs.oracle.com/en-us/iaas/Content/VMware/Concepts/ocvsoverview.htm).
 

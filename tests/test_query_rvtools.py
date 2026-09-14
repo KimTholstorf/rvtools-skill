@@ -419,6 +419,8 @@ class QueryRVToolsTests(unittest.TestCase):
                     "policy_name",
                     "topology",
                     "compute_vms",
+                    "addressable_storage_tib",
+                    "provisioning_headroom_percent",
                     "total_hosts",
                     "vcf_licensable_cores",
                 ],
@@ -438,6 +440,9 @@ class QueryRVToolsTests(unittest.TestCase):
                     "role",
                     "node_type",
                     "provider_minimum_hosts",
+                    "workload_capacity_hosts",
+                    "one_host_resilience_hosts",
+                    "what_determined_the_result",
                     "failure_cpu_floor",
                     "total_hosts",
                     "one_host_loss_validated",
@@ -453,8 +458,16 @@ class QueryRVToolsTests(unittest.TestCase):
 
         self.assertEqual(summary["rows"][0]["policy_name"], "Active-only sizing policy")
         self.assertEqual(summary["rows"][0]["compute_vms"], 2)
+        self.assertEqual(summary["rows"][0]["addressable_storage_tib"], 150)
+        self.assertGreater(summary["rows"][0]["provisioning_headroom_percent"], 0)
         self.assertEqual(clusters["rows"][0]["role"], "unified_management")
         self.assertEqual(clusters["rows"][0]["provider_minimum_hosts"], 3)
+        self.assertEqual(clusters["rows"][0]["workload_capacity_hosts"], 1)
+        self.assertEqual(clusters["rows"][0]["one_host_resilience_hosts"], 2)
+        self.assertEqual(
+            clusters["rows"][0]["what_determined_the_result"],
+            "Cloud service minimum",
+        )
         self.assertEqual(clusters["rows"][0]["total_hosts"], 3)
         self.assertEqual(clusters["rows"][0]["one_host_loss_validated"], 1)
         self.assertIn("configuration_only_sizing", {row["code"] for row in summary["warnings"]})

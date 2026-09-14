@@ -36,7 +36,7 @@ Ask which lens to use when the intent is ambiguous. Do not run every lens or clo
 
 For every hygiene assessment or OCVS, AVS, or GCVE migration report with `vInfo` data, also read and follow [references/guest_os_lifecycle.md](references/guest_os_lifecycle.md). Keep guest-OS lifecycle separate from deterministic HCX method screening.
 
-For an OCVS, AVS, or GCVE sizing report with more than one source cluster in scope, inspect the scope first and ask the user to choose consolidated or source-aligned target clusters unless their request already makes that choice. Do not generate the sizing report while this material design input is unresolved. Follow the topology definitions and calculation rules in [references/hcx_common.md](references/hcx_common.md). A single source cluster does not require this question.
+For an OCVS, AVS, or GCVE sizing report with more than one source cluster in scope, inspect the scope first and ask whether to retain the existing cluster structure or consolidate workloads unless the request already makes that choice. When neither cluster design nor storage basis is supplied, ask for both in one concise question: retain or consolidate, and use provisioned storage as-is or add a named growth allowance. If the cluster design is supplied but storage is not, use provisioned storage with no growth allowance. Do not generate the sizing report while the cluster design is unresolved. Follow [references/hcx_common.md](references/hcx_common.md) and [references/sizing.md](references/sizing.md). A single source cluster does not require a cluster-design question.
 
 For every cloud sizing request, also read [references/sizing.md](references/sizing.md). Use the deterministic Python result as the calculation record. The `recommended` policy is the baseline unless the user deliberately asks for `active_only` or supplies different assumptions.
 
@@ -79,6 +79,8 @@ python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target ocvs \
   --pretty --output /safe/local/path/ocvs-sizing.json
 ```
 
+Provisioned storage is the default. Add `--storage-headroom-percent 25` only when the user deliberately requests a 25% storage growth allowance.
+
 Use `--sizing-policy active_only` only when the user deliberately selects the less conservative active-workload model. Use `--primary-source-cluster` when the primary or unified-management mapping is known.
 
 Use `--vcf-entitlement-cores` only when the user supplies or confirms the actual portable VCF entitlement. Otherwise the BOM compares the target with the in-scope hosts' calculated requirement and labels that figure as a hardware proxy.
@@ -118,7 +120,7 @@ For an estate-wide VCF licensing estimate, query `vcf_license_summary`. If the u
 
 For migration questions, query `migration_method` for exact VM/method outcomes, `migration_finding` for affected workloads and reasons, and `target_node` for the dated OCVS, AVS, or GCVE node catalog. Filter by `target=ocvs|avs|gcve`. Use `configured_physical_cores` for usable compute capacity, but always use `silicon_cores` and `vcf_licensable_cores` for portable-VCF licensing. Never reduce the VCF count because a provider exposes or enables only part of the processor. Always retain the screening-not-validation warning.
 
-For sizing questions, query `sizing_summary` for estate or topology totals and `sizing_cluster` for the per-cluster node, constraint floors, utilization, one-host-loss result, and VCF cores. Filter by target, policy, and topology. These records are precomputed by the same engine used by parser reports; do not recalculate them in prose.
+For sizing questions, query `sizing_summary` for estate or topology totals and `sizing_cluster` for the per-cluster node, constraint floors, utilization, one-host-loss result, and VCF cores. Filter by target, policy, and topology. These records are precomputed by the same engine used by parser reports; do not recalculate them in prose. Translate internal identifiers such as `source_aligned`, `failure_cpu_floor`, and `binding_constraints` into the management-facing report language defined in [references/sizing.md](references/sizing.md).
 
 ## Interpret the selected lens
 
@@ -135,7 +137,7 @@ For sizing questions, query `sizing_summary` for estate or topology totals and `
 7. For the hygiene lens, research every distinct nonblank host vendor/model against current primary vendor lifecycle sources. Record the exact matched scope and as-of date; never equate End-of-Sale with end of support. Report missing vendor/model data or an unverified model match as a coverage gap.
 8. For guest-OS lifecycle, research exact in-scope releases against current primary-vendor sources. Treat extended-support availability as distinct from customer entitlement, keep ambiguous versions unknown, and never change an HCX method result because of OS lifecycle.
 9. For OCVS, AVS, or GCVE sizing, use the deterministic `sizing` result. Calculate workload fit from configured capacity and VCF licensing from full physical silicon. Include the VCF-core obligation when comparing node types, including reduced-core and storage-only variants. Withhold the licensing recommendation if the full silicon count cannot be verified from current provider and Broadcom documentation.
-10. For multi-cluster sizing, make the user's topology choice the primary sizing recommendation and include a brief reverse-topology comparison. Never present consolidated sizing as the assumed default.
+10. For multi-cluster sizing, make the user's cluster-design choice the primary sizing recommendation and include a brief **What consolidation would change** comparison. Never present consolidation as the assumed default.
 11. For a cloud BOM, use the provider adapter's rows without renaming API-native identifiers. Calculate the current-estate VCF requirement from in-scope hosts and the target requirement from full physical silicon. Preserve `partial` or `unpriced` status and never fill a missing rate with an estimate from another region, currency, or SKU.
 
 ## Produce the report
@@ -153,12 +155,12 @@ Use this information order:
 3. Inventory and capacity snapshot.
 4. Findings by severity with affected counts, safe examples, impact, and next action.
 5. Lens-specific readiness or migration-profile implications.
-6. For cloud sizing, the primary topology design and a concise reverse-topology comparison.
-7. Prioritized remediation plan: before design, before pilot, before wave, after move.
-8. Coverage gaps and additional evidence required.
-9. Method, thresholds, assumptions, source workbook hash, and authoritative source links.
-10. Acronym glossary.
-11. For cloud sizing, Bill of materials and public list-price estimate.
+6. For cloud sizing, the selected cluster design, **How the host recommendation was determined**, storage capacity and service limits, CPU compatibility and migration options, and **What consolidation would change**.
+7. For cloud sizing, Bill of materials and estimated monthly cost.
+8. Prioritized decisions and next steps: before design, before pilot, before wave, after move.
+9. Coverage gaps and additional evidence required.
+10. Sizing assumptions and limitations, source workbook hash, and authoritative source links.
+11. Acronym glossary.
 
 In **Assessment scope and coverage**, state whether the report covers the full exported estate or a filtered selection. Show selected versus exported counts for vCenters, datacenters, clusters, hosts, workload VMs, powered-on VMs, and templates when those fields are available. Name every selected vCenter and datacenter, and list cluster names when ten or fewer are selected; otherwise give the count and a bounded appendix. Datacenter names must not replace cluster names when the user selected individual clusters.
 
@@ -167,6 +169,16 @@ Establish the filter before calculating any result. Apply the same scope filter 
 For HTML, keep it self-contained with no remote scripts, fonts, analytics, or data calls. Replace the template placeholders, remove unused sections, escape source-derived strings, and avoid embedding the full parser JSON.
 
 For Markdown, use compact tables only where they improve comparison. Write exact affected counts and label truncated example lists.
+
+For a cloud sizing report, call the selected design **Retain the existing cluster structure** or **Consolidate workloads into fewer clusters**. Do not expose `source_aligned`, “reverse topology,” “floor,” “binding constraint,” “CPU host-loss,” “RAM host-loss,” or “deterministic Pareto” as customer-facing language.
+
+Title the main host-count section **How the host recommendation was determined**. Use these columns in this order: target cluster, target host type, **Workload capacity**, **One-host resilience**, **Cloud service minimum**, **Recommended hosts**, and **What determined the result**. Read the values from `recommendation.presentation`. Follow the table with a plain-language explanation that the recommendation is the highest applicable requirement, a platform minimum already represents purchased hosts, and no standby host is added automatically. Explain any result where normal operating headroom requires more hosts than the one-host-unavailable calculation or where the platform minimum already provides the required resilience.
+
+Use **Storage capacity and service limits** for storage. Show storage currently used, provisioned storage, the selected growth allowance, and capacity included in the estimate. Report `sizing.design_findings` as design findings. A Limited storage headroom finding is a planning indicator, not proof of an immediate shortage; explain the effect of thin provisioning and any incomplete datastore coverage.
+
+Use **CPU compatibility and migration options**, **Alternative cloud host options**, **What consolidation would change**, and **What the estimate includes** for the corresponding report sections. Explain cross-vendor CPU choices as a decision between a powered-off migration and a same-vendor target that may change host or licence quantities.
+
+In a priced BOM, place the selected priced subtotal first. When `bom.storage_growth_comparison.status` is `complete`, place exactly one comparison row immediately beneath it using `report_row_label`, `additional_storage_monthly`, and `subtotal_with_growth`. Label it as a comparison only; it must not change the selected BOM or become a grand total for a partial BOM.
 
 End assessment reports with a concise acronym glossary. Define only abbreviations used in the report, including product names and migration methods such as HCX and RAV. Describe HCX as the VMware workload-mobility and network-extension platform; do not force an obsolete product-name expansion. Spell out an acronym on first use where that improves readability, even when it also appears in the glossary.
 
@@ -187,10 +199,13 @@ Before finishing:
 - Confirm recommendations do not imply changes were executed.
 - Confirm a VCF licensing result uses physical cores with the per-CPU minimum, states the included host scope, and withholds the estate total when CPU topology is incomplete.
 - Confirm every cloud-node recommendation distinguishes configured compute from full physical silicon and uses `vcf_licensable_cores`, not configured or disabled cores, for VCF licensing.
-- Confirm every sizing report uses the deterministic engine result, names the selected policy, shows all binding host-count constraints, and does not add a failure host blindly to the provider minimum.
-- Confirm OCVS reports call the recommended profile the Oracle default sizing policy. Confirm AVS and GCVE reports call it the recommended sizing policy and do not attribute it to Oracle.
-- Confirm every multi-cluster cloud sizing report records the user's topology choice, shows the primary source-to-target cluster mapping, and includes the reverse-topology comparison using the same scope and assumptions.
+- Confirm every sizing report uses the deterministic engine result, names the selected assumptions, explains what determined each host count, and does not add a failure host blindly to the provider minimum.
+- Confirm OCVS reports call the recommended profile **Recommended OCVS planning assumptions**. Confirm AVS and GCVE reports call it **Recommended cloud sizing assumptions** and do not attribute it to Oracle.
+- Confirm every multi-cluster cloud sizing report records the user's cluster-design choice, shows the source-to-target mapping, and includes **What consolidation would change** using the same scope and assumptions.
+- Confirm the storage basis is explicit. Provisioned storage has no automatic growth allowance; any positive allowance must be user-selected and shown as such.
+- Confirm addressable datastore capacity is deduplicated, incomplete coverage is disclosed, and storage headroom of 25% or less appears as a non-critical design finding using the engine severity.
 - Confirm every priced cloud sizing report uses `bom.table`, names the currency, region and pricing model, distinguishes complete, partial and unpriced results, and does not present a partial subtotal as a grand total.
+- Confirm a complete priced BOM shows the engine-provided 25% storage comparison directly below the selected subtotal when separately priced storage exists.
 - Confirm current-estate VCF is labeled as a hardware-derived requirement unless actual entitlement was verified, and target VCF uses full physical silicon.
 - Confirm a vSAN result distinguishes verified raw TiB from an RVTools datastore-capacity proxy and reports either add-on TiB or surplus TiB, never both as positive.
 - Confirm scope coverage shows selected versus exported infrastructure and that every reported total uses the same scope filter.

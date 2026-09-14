@@ -47,16 +47,16 @@ For OCVS, AVS, or GCVE sizing, read and follow [sizing.md](sizing.md). Use the P
 
 Do not add N+1 mechanically to a provider minimum. The engine tests normal-operation capacity, one-host-loss capacity, and the provider minimum independently, then uses the highest result.
 
-## Target-cluster topology choice
+## Target cluster design
 
 When more than one source cluster is in scope, present these two choices before producing a sizing report:
 
-- **Consolidated target**: combine compatible workloads from the selected source clusters into the fewest practical target workload clusters. Start with one target cluster, then split only when a provider limit or an explicit CPU-vendor, availability, security, compliance, storage, network, performance, or operational-isolation requirement makes another cluster necessary.
-- **Source-aligned target**: preserve one target cluster for each populated source cluster and size each independently. Do not pool capacity across clusters. Exclude and list source clusters with no hosts.
+- **Consolidate workloads into fewer clusters**: combine compatible workloads from the selected source clusters into the fewest practical target workload clusters. Start with one target cluster, then split only when a provider limit or an explicit CPU-vendor, availability, security, compliance, storage, network, performance, or operational-isolation requirement makes another cluster necessary.
+- **Retain the existing cluster structure**: preserve one target cluster for each populated source cluster and size each independently. Do not pool capacity across clusters. Exclude and list source clusters with no hosts.
 
-Do not begin a multi-cluster sizing report until the user chooses one of these topologies, unless their request already states the choice. Ask one concise question that includes the selected source-cluster count and explains that consolidation normally reduces duplicated minimum capacity and N+1 reserves, while source alignment preserves isolation boundaries. Do not silently treat a missing answer as approval to consolidate. Skip the question when only one source cluster is in scope because the two choices are equivalent.
+Do not begin a multi-cluster sizing report until the user chooses one of these designs, unless the request already states the choice. When storage is also unspecified, use the same question to ask whether to use provisioned storage as-is or add a named growth allowance. Explain that consolidation normally reduces duplicated minimum and resilience capacity, while retaining the existing structure preserves current isolation boundaries. Do not silently treat a missing answer as approval to consolidate. Skip the cluster-design question when only one source cluster is in scope because the choices are equivalent.
 
-Make the chosen topology the primary sizing recommendation. Show its calculation per proposed target cluster, including the source-to-target mapping. Then include a brief view of the unselected topology using the same policy. Compare at least target-cluster count, purchased hosts, one-host-loss capacity, storage demand, and VCF-core obligation.
+Make the chosen design the primary sizing recommendation. Show its calculation per proposed target cluster, including the source-to-target mapping. Then add **What consolidation would change** using the same assumptions. Compare at least target-cluster count, purchased hosts, one-host-loss capacity, storage demand, and VCF-core obligation. If consolidation was selected, use the same section to explain what retaining the existing structure would change.
 
 Cluster boundaries in RVTools are evidence of the current layout, not proof that they must be preserved or can safely be removed. Keep application affinity, licensing, fault domains, compliance, security zones, network segmentation, storage policy, CPU compatibility, and operational ownership as validation gates. If same-named clusters from different vCenters cannot be distinguished reliably, stop the per-cluster calculation and request a disambiguated scope instead of combining them.
 

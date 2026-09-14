@@ -17,6 +17,8 @@ python3 /absolute/path/to/plugin/scripts/run_rvtools.py parse /absolute/path/to/
 
 Add `--include-bom`, the selected target and topology, and the requested currency for a cloud sizing report with a provider-specific BOM. AVS and GCVE also need `--target-region` for live pricing.
 
+Provisioned storage has no automatic growth allowance. Add `--storage-headroom-percent` only when the user deliberately requests one.
+
 ```bash
 python3 /absolute/path/to/plugin/scripts/run_rvtools.py query /absolute/path/to/export.xlsx \
   --index /safe/session/path/rvtools-query.sqlite \

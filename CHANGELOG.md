@@ -2,6 +2,22 @@
 
 This file tracks each RVTools Analyzer release.
 
+## [0.6.1] - 2026-09-14
+
+### Added
+
+- A storage design finding when addressable datastore capacity provides no more than 25% headroom above provisioned VM and template storage. Severity rises from information to low or medium as the margin narrows.
+- Management-ready host recommendations showing workload capacity, one-host resilience, the cloud service minimum, the recommended host count, and what determined the result.
+- A BOM comparison row showing the additional monthly storage cost and subtotal for a 25% storage allowance when the provider prices storage separately.
+- Conversational sizing fields for addressable storage, provisioning headroom, and the management-facing host-count explanation.
+
+### Changed
+
+- Provisioned storage is now the default sizing and BOM basis. Growth is added only when the user requests a percentage.
+- When both design choices are missing, multi-cluster sizing asks whether to retain the existing cluster structure or consolidate workloads and whether to use provisioned storage as-is or include growth.
+- Cloud sizing reports now lead with decision-ready language and explain host counts, storage limits, CPU compatibility, alternative host options, consolidation, and estimate boundaries without exposing internal calculation labels.
+- The parser schema is now version 4.1, the sizing and BOM schemas are version 1.1, and the conversational query index is version 9.
+
 ## [0.6.0] - 2026-09-12
 
 ### Added
@@ -158,6 +174,7 @@ This file tracks each RVTools Analyzer release.
 - Plugin marketplace packaging for Claude Code and Codex.
 - The short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.6.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.3...v0.5.0
 [0.4.3]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.2...v0.4.3
