@@ -19,6 +19,8 @@ Add `--include-bom`, the selected target and topology, and the requested currenc
 
 Provisioned storage has no automatic growth allowance. Add `--storage-headroom-percent` only when the user deliberately requests one.
 
+Compute defaults to powered-on non-template VMs. `--compute-scope all` changes only which VMs contribute CPU and RAM demand; it does not change headroom, memory-overcommit limits, resilience, or storage scope. See the plugin root's `references/sizing.md` for the independent controls.
+
 ```bash
 python3 /absolute/path/to/plugin/scripts/run_rvtools.py query /absolute/path/to/export.xlsx \
   --index /safe/session/path/rvtools-query.sqlite \

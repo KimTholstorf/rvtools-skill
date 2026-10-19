@@ -235,6 +235,32 @@ class BomEngineTests(unittest.TestCase):
         self.assertEqual(gcve["strategy"], "integrated_vsan")
         self.assertFalse(gcve["capacity_validated"])
 
+    def test_storage_comparison_is_independent_of_compute_scope_and_headroom_finding(self):
+        sizing = importlib.import_module("rvtools.sizing")
+        oci = importlib.import_module("rvtools.pricing.oci")
+        gib = 1024
+        rows = {
+            "vInfo": [
+                {"VM": "on", "Cluster": "a", "Powerstate": "poweredOn", "CPUs": 4, "Memory": 8 * gib, "Provisioned MiB": 10 * gib},
+                {"VM": "off", "Cluster": "a", "Powerstate": "poweredOff", "CPUs": 40, "Memory": 100 * gib, "Provisioned MiB": 100 * gib},
+                {"VM": "template", "Cluster": "a", "Template": True, "Provisioned MiB": 20 * gib},
+            ],
+            "vHost": [{"Host": "h", "Cluster": "a"}],
+        }
+        comparisons = []
+        for capacity_gib in (140, 300):
+            rows["vDatastore"] = [{"Name": "ds", "Cluster": "a", "Capacity MiB": capacity_gib * gib}]
+            for scope in ("powered_on", "all"):
+                design = sizing.size_environment(rows, "ocvs", compute_scope=scope, target_node="BM.Standard.E5.192-192")
+                self.assertEqual(bool(design["design_findings"]), capacity_gib == 140)
+                adapter = oci.OciPricingAdapter()
+                with patch.object(adapter, "quote", return_value={"status": "priced", "unit_price": 1, "monthly_factor": 1}):
+                    result = self.bom.build_bom(design, adapter=adapter, storage_plan=self.bom.storage_plan_for_sizing(design))
+                self.assertEqual(result["storage_plan"]["selected_headroom_percent"], 0)
+                self.assertEqual(result["storage_growth_comparison"]["status"], "complete")
+                comparisons.append(result["storage_growth_comparison"])
+        self.assertTrue(all(comparison == comparisons[0] for comparison in comparisons))
+
     def test_elastic_san_requires_an_explicit_performance_bearing_base(self):
         with self.assertRaisesRegex(ValueError, "explicit base capacity"):
             self.bom.storage_plan_for_sizing(

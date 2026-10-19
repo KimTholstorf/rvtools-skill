@@ -2,6 +2,18 @@
 
 This file tracks each RVTools Analyzer release.
 
+## [0.6.2] - 2026-10-19
+
+### Changed
+
+- Compute sizing now includes only powered-on, non-template VMs by default. Powered-off VMs and templates still count toward provisioned storage.
+- Compute scope is separate from CPU allocation, CPU and RAM headroom, memory overcommit, and host resilience. Including all VM power states no longer changes any other assumption.
+- The default remains 4:1 CPU allocation, 20% CPU and RAM headroom, no memory overcommit, and capacity for one unavailable host per target cluster. Storage still defaults to provisioned capacity without growth.
+- Removed the bundled `active_only` policy. Use `--compute-scope powered_on` or `all`, with separate overrides when needed. Memory overcommit now requires a bounded ratio; it no longer removes memory from sizing constraints.
+- Disabling the host reserve marks one-host-failure checks as not evaluated instead of reporting a pass.
+- Conversational sizing records expose compute scope and capacity settings. Cached indexes rebuild automatically so old assumptions cannot survive the update.
+- The parser schema is now 4.2, the sizing engine version is 1.2, and the query index is version 10. The storage-headroom finding and separately priced 25% storage BOM comparison are unchanged.
+
 ## [0.6.1] - 2026-09-14
 
 ### Added
@@ -174,6 +186,7 @@ This file tracks each RVTools Analyzer release.
 - Plugin marketplace packaging for Claude Code and Codex.
 - The short Claude command `/rvtools:analyze` and Codex skill `$rvtools-analyzer`.
 
+[0.6.2]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/KimTholstorf/rvtools-skill/compare/v0.4.3...v0.5.0

@@ -12,6 +12,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+from itertools import product
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -25,7 +26,7 @@ PARSER_SPEC.loader.exec_module(RVTOOLS)
 
 from rvtools.licensing import host_core_requirement
 
-INDEX_SCHEMA_VERSION = "9"
+INDEX_SCHEMA_VERSION = "10"
 INDEXED_SHEETS = (
     "vInfo",
     "vHost",
@@ -240,6 +241,12 @@ ENTITY_SCHEMAS = {
         "target": "TEXT",
         "policy": "TEXT",
         "policy_name": "TEXT",
+        "compute_scope": "TEXT",
+        "vcpu_per_physical_core": "REAL",
+        "cpu_headroom_percent": "REAL",
+        "memory_headroom_percent": "REAL",
+        "memory_overcommit_ratio": "REAL",
+        "failure_reserve_hosts": "INTEGER",
         "topology": "TEXT",
         "status": "TEXT",
         "source_cluster_count": "INTEGER",
@@ -265,6 +272,12 @@ ENTITY_SCHEMAS = {
     "sizing_cluster": {
         "target": "TEXT",
         "policy": "TEXT",
+        "compute_scope": "TEXT",
+        "vcpu_per_physical_core": "REAL",
+        "cpu_headroom_percent": "REAL",
+        "memory_headroom_percent": "REAL",
+        "memory_overcommit_ratio": "REAL",
+        "failure_reserve_hosts": "INTEGER",
         "topology": "TEXT",
         "status": "TEXT",
         "target_cluster": "TEXT",
@@ -378,6 +391,7 @@ DEFAULT_SELECT = {
         "target",
         "policy",
         "policy_name",
+        "compute_scope",
         "topology",
         "status",
         "source_cluster_count",
@@ -395,6 +409,7 @@ DEFAULT_SELECT = {
     "sizing_cluster": (
         "target",
         "policy",
+        "compute_scope",
         "topology",
         "target_cluster",
         "role",
@@ -878,13 +893,14 @@ def _build_index(connection, workbook_path, digest):
     sizing_errors = set()
     sizing_runtime_warnings = set()
     for target_id in RVTOOLS.TARGET_IDS:
-        for policy_id in RVTOOLS.POLICIES:
+        for policy_id, compute_scope in product(RVTOOLS.POLICIES, RVTOOLS.COMPUTE_SCOPES):
             for topology in ("consolidated", "source_aligned"):
                 try:
                     sizing = RVTOOLS.size_environment(
                         rows,
                         target_id,
                         policy_id=policy_id,
+                        compute_scope=compute_scope,
                         topology=topology,
                         prepared=prepared_sizing_input,
                     )
@@ -899,11 +915,20 @@ def _build_index(connection, workbook_path, digest):
                 totals = sizing["totals"]
                 storage_capacity = sizing.get("storage_capacity", {})
                 storage_findings = sizing.get("design_findings", [])
+                settings = {
+                    key: sizing["policy"][key]
+                    for key in (
+                        "compute_scope", "vcpu_per_physical_core",
+                        "cpu_headroom_percent", "memory_headroom_percent",
+                        "memory_overcommit_ratio", "failure_reserve_hosts",
+                    )
+                }
                 sizing_summaries.append(
                     {
                         "target": target_id,
                         "policy": policy_id,
                         "policy_name": sizing["policy"]["display_name"],
+                        **settings,
                         "topology": topology,
                         "status": sizing["status"],
                         "source_cluster_count": totals["source_clusters"],
@@ -949,6 +974,7 @@ def _build_index(connection, workbook_path, digest):
                         {
                             "target": target_id,
                             "policy": policy_id,
+                            **settings,
                             "topology": topology,
                             "status": cluster["status"],
                             "target_cluster": cluster["target_cluster"],
@@ -1009,7 +1035,7 @@ def _build_index(connection, workbook_path, digest):
                             ),
                             "one_host_loss_validated": (
                                 int(recommendation["one_host_loss_validated"])
-                                if "one_host_loss_validated" in recommendation
+                                if recommendation.get("one_host_loss_validated") is not None
                                 else None
                             ),
                             "vcf_licensable_cores": recommendation.get(
@@ -1247,6 +1273,15 @@ def _compile_query(plan):
 
 
 def run_query(workbook, plan, *, index_path=None):
+    # Scope is a separate cached dimension. Default only that dimension here,
+    # and expose the effective filter so callers never double-count both views.
+    if str(plan.get("entity", "")).strip().casefold() in {"sizing_summary", "sizing_cluster"}:
+        filters = list(plan.get("filters") or [])
+        if "compute_scope" not in (plan.get("group_by") or []) and not any(
+            str(item).split("=", 1)[0].split("__", 1)[0] == "compute_scope"
+            for item in filters
+        ):
+            plan = dict(plan, filters=filters + ["compute_scope=powered_on"])
     workbook_path = Path(workbook)
     if not workbook_path.exists():
         raise FileNotFoundError(workbook_path)

@@ -40,7 +40,7 @@ class SizingBootstrapTests(unittest.TestCase):
     def test_sizing_domain_imports(self):
         module = importlib.import_module("rvtools.sizing")
         self.assertEqual(module.DEFAULT_POLICY_ID, "recommended")
-        self.assertEqual(set(module.POLICIES), {"recommended", "active_only"})
+        self.assertEqual(set(module.POLICIES), {"recommended"})
 
 
 class SizingEngineTests(unittest.TestCase):
@@ -266,26 +266,141 @@ class SizingEngineTests(unittest.TestCase):
             ),
         )
 
-    def test_active_only_is_an_explicit_less_conservative_option(self):
+    def test_default_compute_scope_is_powered_on_without_relaxing_capacity(self):
         rows = {
             "vInfo": workload_rows("cluster-a", 1, 4, 8)
             + workload_rows("cluster-a", 1, 500, 400, power_state="poweredOff"),
             "vHost": [{"Host": "host-a", "Cluster": "cluster-a"}],
         }
-        recommended = self.sizing.size_environment(
-            rows, "avs", policy_id="recommended", topology="consolidated", target_node="AV36"
-        )
-        active = self.sizing.size_environment(
-            rows, "avs", policy_id="active_only", topology="consolidated", target_node="AV36"
+        result = self.sizing.size_environment(
+            rows, "avs", topology="consolidated", target_node="AV36"
         )
 
-        self.assertEqual(recommended["policy"]["compute_scope"], "all_non_template_vms")
-        self.assertEqual(active["policy"]["compute_scope"], "powered_on_non_template_vms")
-        self.assertEqual(recommended["totals"]["compute_vms"], 2)
-        self.assertEqual(active["totals"]["compute_vms"], 1)
-        self.assertGreater(recommended["totals"]["total_hosts"], active["totals"]["total_hosts"])
-        self.assertTrue(recommended["policy"]["memory_is_binding"])
-        self.assertFalse(active["policy"]["memory_is_binding"])
+        self.assertEqual(result["totals"]["compute_vms"], 1)
+        self.assertEqual(result["policy"]["compute_scope"], "powered_on")
+        self.assertEqual(result["policy"]["cpu_headroom_percent"], 20)
+        self.assertEqual(result["policy"]["memory_headroom_percent"], 20)
+        self.assertEqual(result["policy"]["memory_overcommit_ratio"], 1)
+        self.assertEqual(result["policy"]["failure_reserve_hosts"], 1)
+
+    def test_compute_scope_changes_nothing_else_in_the_policy_or_storage(self):
+        rows = {
+            "vInfo": workload_rows("a", 1, 4, 8)
+            + workload_rows("a", 1, 500, 400, power_state="poweredOff")
+            + workload_rows("a", 1, 40, 400, power_state="suspended")
+            + workload_rows("a", 1, 40, 400, power_state="")
+            + [dict(workload_rows("a", 1, 999, 999)[0], Template=True)],
+            "vHost": [{"Host": "host-a", "Cluster": "a"}],
+            "vDatastore": [{"Name": "ds", "Cluster": "a", "Capacity MiB": 6 * 1024}],
+        }
+        on = self.sizing.size_environment(rows, "avs", compute_scope="powered_on", target_node="AV36")
+        all_vms = self.sizing.size_environment(rows, "avs", compute_scope="all", target_node="AV36")
+        self.assertEqual(on["totals"]["compute_vms"], 1)
+        self.assertEqual(all_vms["totals"]["compute_vms"], 4)
+        self.assertEqual(on["totals"]["workload_vms"], 4)
+        self.assertEqual(on["totals"]["templates"], 1)
+        self.assertEqual(on["totals"]["storage_required_tib"], all_vms["totals"]["storage_required_tib"])
+        self.assertEqual(on["storage_capacity"], all_vms["storage_capacity"])
+        self.assertEqual(on["design_findings"], all_vms["design_findings"])
+        self.assertEqual(on["design_findings"][0]["id"], "limited_storage_headroom")
+        self.assertEqual(
+            {k: v for k, v in on["policy"].items() if k != "compute_scope"},
+            {k: v for k, v in all_vms["policy"].items() if k != "compute_scope"},
+        )
+
+    def test_capacity_controls_are_independent_and_recorded(self):
+        rows = {"vInfo": workload_rows("a", 32, 800, 2000), "vHost": [{"Host": "h", "Cluster": "a"}]}
+        result = self.sizing.size_environment(
+            rows, "avs", compute_scope="all", target_node="AV36",
+            vcpu_per_physical_core=3, cpu_headroom_percent=10,
+            memory_headroom_percent=15, memory_overcommit_ratio=1.2,
+            failure_reserve_hosts=0, storage_headroom_percent=25,
+        )
+        policy = result["policy"]
+        self.assertEqual(policy["vcpu_per_physical_core"], 3)
+        self.assertEqual(policy["cpu_headroom_percent"], 10)
+        self.assertEqual(policy["memory_headroom_percent"], 15)
+        self.assertEqual(policy["memory_overcommit_ratio"], 1.2)
+        self.assertEqual(policy["failure_reserve_hosts"], 0)
+        self.assertEqual(policy["storage_headroom_percent"], 25)
+        rec = result["clusters"][0]["recommendation"]
+        self.assertEqual(rec["normal_cpu_floor"], math.ceil(800 / (36 * 3 * .9)))
+        self.assertEqual(rec["normal_memory_floor"], math.ceil(2000 / (576 * 1.2 * .85)))
+
+    def test_powered_on_default_and_all_scope_work_for_each_cloud(self):
+        rows = {
+            "vInfo": workload_rows("a", 4, 40, 80) + workload_rows("a", 4, 200, 200, power_state="poweredOff"),
+            "vHost": [{"Host": "h", "Cluster": "a"}],
+        }
+        for target in ("ocvs", "avs", "gcve"):
+            with self.subTest(target=target):
+                default = self.sizing.size_environment(rows, target)
+                all_vms = self.sizing.size_environment(rows, target, compute_scope="all")
+                self.assertEqual(default["totals"]["compute_vms"], 4)
+                self.assertEqual(all_vms["totals"]["compute_vms"], 8)
+                self.assertEqual(default["totals"]["configured_vcpus"], 40)
+                self.assertEqual(all_vms["totals"]["configured_vcpus"], 240)
+                self.assertEqual(default["policy"]["memory_overcommit_ratio"], 1)
+
+    def test_a_populated_cluster_with_only_powered_off_vms_keeps_its_minimum_and_storage(self):
+        rows = {"vInfo": workload_rows("a", 1, 100, 700, power_state="poweredOff"), "vHost": [{"Host": "h", "Cluster": "a"}]}
+        result = self.sizing.size_environment(rows, "ocvs", target_node="BM.Standard.E5.192-192")
+        self.assertEqual(result["totals"]["compute_vms"], 0)
+        self.assertEqual(result["totals"]["workload_vms"], 1)
+        self.assertEqual(result["totals"]["total_hosts"], 3)
+        self.assertGreater(result["totals"]["storage_required_tib"], 0)
+
+    def test_memory_overcommit_is_bounded_and_applies_to_resilience(self):
+        rows = {"vInfo": workload_rows("a", 32, 128, 4000), "vHost": [{"Host": "h", "Cluster": "a"}]}
+        result = self.sizing.size_environment(rows, "avs", target_node="AV36", memory_overcommit_ratio=1.5)
+        rec = result["clusters"][0]["recommendation"]
+        self.assertEqual(rec["total_hosts"], 6)
+        self.assertEqual(rec["failure_memory_floor"], 6)
+        self.assertGreater(rec["post_failure_memory_utilization_percent"], 100)
+        self.assertLessEqual(rec["post_failure_memory_utilization_percent"], 150)
+        self.assertTrue(rec["one_host_loss_validated"])
+        self.assertTrue(rec["valid"])
+        self.assertEqual(result["policy"]["cpu_headroom_percent"], 20)
+
+    def test_no_reserve_does_not_claim_a_one_host_failure_check(self):
+        rows = {"vInfo": workload_rows("a", 32, 800, 2000), "vHost": [{"Host": "h", "Cluster": "a"}]}
+        result = self.sizing.size_environment(rows, "avs", target_node="AV36", failure_reserve_hosts=0)
+        rec = result["clusters"][0]["recommendation"]
+        self.assertTrue(rec["valid"])
+        self.assertEqual(rec["failure_cpu_floor"], 0)
+        self.assertEqual(rec["failure_memory_floor"], 0)
+        self.assertIsNone(rec["one_host_loss_validated"])
+        self.assertIsNone(rec["post_failure_memory_utilization_percent"])
+        self.assertIsNone(rec["presentation"]["one_host_resilience_hosts"])
+
+    def test_an_overcommit_ratio_does_not_make_an_oversized_vm_fit_one_host(self):
+        rows = {"vInfo": workload_rows("a", 1, 4, 700), "vHost": [{"Host": "h", "Cluster": "a"}]}
+        result = self.sizing.size_environment(rows, "avs", target_node="AV36", memory_overcommit_ratio=2)
+        self.assertEqual(result["status"], "attention_required")
+        self.assertFalse(result["clusters"][0]["recommendation"]["largest_vm_memory_fits_one_host"])
+
+    def test_old_active_only_bundle_is_rejected_instead_of_silently_relaxing_memory(self):
+        rows = {"vInfo": workload_rows("a", 1, 4, 8), "vHost": [{"Host": "h", "Cluster": "a"}]}
+        with self.assertRaisesRegex(ValueError, "active_only.*compute.scope"):
+            self.sizing.size_environment(rows, "ocvs", policy_id="active_only")
+
+    def test_invalid_independent_sizing_controls_are_rejected(self):
+        rows = {"vInfo": workload_rows("a", 1, 4, 8), "vHost": [{"Host": "h", "Cluster": "a"}]}
+        cases = [
+            ("compute_scope", "unknown"),
+            ("vcpu_per_physical_core", 0), ("vcpu_per_physical_core", float("nan")),
+            ("vcpu_per_physical_core", True), ("vcpu_per_physical_core", float("inf")),
+            ("cpu_headroom_percent", -1), ("cpu_headroom_percent", 100),
+            ("cpu_headroom_percent", float("nan")),
+            ("memory_headroom_percent", 100), ("memory_headroom_percent", float("inf")),
+            ("memory_overcommit_ratio", 0), ("memory_overcommit_ratio", .9),
+            ("memory_overcommit_ratio", float("inf")),
+            ("failure_reserve_hosts", -1), ("failure_reserve_hosts", 2),
+            ("failure_reserve_hosts", .5), ("failure_reserve_hosts", True),
+        ]
+        for field, value in cases:
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                self.sizing.size_environment(rows, "ocvs", **{field: value})
 
     def test_default_policy_labels_are_provider_appropriate(self):
         rows = {

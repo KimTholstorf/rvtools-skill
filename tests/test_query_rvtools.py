@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -426,7 +427,7 @@ class QueryRVToolsTests(unittest.TestCase):
                 ],
                 "filters": [
                     "target=ocvs",
-                    "policy=active_only",
+                    "policy=recommended",
                     "topology=source_aligned",
                 ],
             },
@@ -449,14 +450,14 @@ class QueryRVToolsTests(unittest.TestCase):
                 ],
                 "filters": [
                     "target=ocvs",
-                    "policy=active_only",
+                    "policy=recommended",
                     "topology=source_aligned",
                     "target_cluster=cluster-a",
                 ],
             },
         )
 
-        self.assertEqual(summary["rows"][0]["policy_name"], "Active-only sizing policy")
+        self.assertEqual(summary["rows"][0]["policy_name"], "Recommended OCVS planning assumptions")
         self.assertEqual(summary["rows"][0]["compute_vms"], 2)
         self.assertEqual(summary["rows"][0]["addressable_storage_tib"], 150)
         self.assertGreater(summary["rows"][0]["provisioning_headroom_percent"], 0)
@@ -471,6 +472,37 @@ class QueryRVToolsTests(unittest.TestCase):
         self.assertEqual(clusters["rows"][0]["total_hosts"], 3)
         self.assertEqual(clusters["rows"][0]["one_host_loss_validated"], 1)
         self.assertIn("configuration_only_sizing", {row["code"] for row in summary["warnings"]})
+
+    def test_sizing_query_defaults_to_powered_on_and_all_scope_is_independent(self):
+        plan = {
+            "entity": "sizing_summary",
+            "select": ["compute_scope", "compute_vms", "cpu_headroom_percent", "memory_headroom_percent", "memory_overcommit_ratio", "failure_reserve_hosts", "provisioned_storage_tib"],
+            "filters": ["target=ocvs", "policy=recommended", "topology=consolidated"],
+        }
+        on = QUERY.run_query(self.path, plan)
+        all_vms = QUERY.run_query(self.path, dict(plan, filters=plan["filters"] + ["compute_scope=all"]))
+        self.assertEqual(on["row_count"], 1)
+        self.assertEqual(on["rows"][0]["compute_scope"], "powered_on")
+        self.assertEqual(on["rows"][0]["compute_vms"], 2)
+        self.assertEqual(all_vms["rows"][0]["compute_vms"], 3)
+        self.assertIn("compute_scope=powered_on", on["query"]["filters"])
+        for field in ("cpu_headroom_percent", "memory_headroom_percent", "memory_overcommit_ratio", "failure_reserve_hosts", "provisioned_storage_tib"):
+            self.assertEqual(on["rows"][0][field], all_vms["rows"][0][field])
+        self.assertEqual(on["rows"][0]["memory_overcommit_ratio"], 1)
+
+    def test_old_sizing_index_is_rebuilt_for_the_new_default(self):
+        index = Path(self.tempdir.name) / "query.sqlite"
+        plan = {"entity": "sizing_summary", "select": ["compute_scope", "compute_vms"], "filters": ["target=ocvs", "topology=consolidated"]}
+        QUERY.run_query(self.path, plan, index_path=index)
+        connection = sqlite3.connect(index)
+        try:
+            connection.execute("UPDATE metadata SET value = '9' WHERE key = 'schema_version'")
+            connection.commit()
+        finally:
+            connection.close()
+        rebuilt = QUERY.run_query(self.path, plan, index_path=index)
+        self.assertFalse(rebuilt["index_reused"])
+        self.assertEqual(rebuilt["rows"], [{"compute_scope": "powered_on", "compute_vms": 2}])
 
     def test_target_catalog_licenses_full_silicon_when_compute_cores_are_reduced(self):
         selected_ocvs = TARGETS.target_profile(

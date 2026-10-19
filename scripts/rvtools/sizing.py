@@ -11,6 +11,7 @@ from .targets import PROFILES, target_profile
 
 
 DEFAULT_POLICY_ID = "recommended"
+COMPUTE_SCOPES = ("powered_on", "all")
 MIB_PER_GIB = 1024.0
 MIB_PER_TIB = 1024.0 * 1024.0
 
@@ -24,7 +25,7 @@ class CapacityPolicy:
     vcpu_per_physical_core: float
     cpu_headroom_percent: float
     memory_headroom_percent: float
-    memory_is_binding: bool
+    memory_overcommit_ratio: float
     storage_scope: str
     storage_headroom_percent: float
     failure_reserve_hosts: int
@@ -33,27 +34,75 @@ class CapacityPolicy:
 POLICIES = {
     "recommended": CapacityPolicy(
         id="recommended",
-        compute_scope="all_non_template_vms",
+        compute_scope="powered_on",
         vcpu_per_physical_core=4.0,
         cpu_headroom_percent=20.0,
         memory_headroom_percent=20.0,
-        memory_is_binding=True,
-        storage_scope="all_selected_vms_and_templates",
-        storage_headroom_percent=0.0,
-        failure_reserve_hosts=1,
-    ),
-    "active_only": CapacityPolicy(
-        id="active_only",
-        compute_scope="powered_on_non_template_vms",
-        vcpu_per_physical_core=4.0,
-        cpu_headroom_percent=0.0,
-        memory_headroom_percent=0.0,
-        memory_is_binding=False,
+        memory_overcommit_ratio=1.0,
         storage_scope="all_selected_vms_and_templates",
         storage_headroom_percent=0.0,
         failure_reserve_hosts=1,
     ),
 }
+
+
+def resolve_capacity_policy(
+    policy_id: str = DEFAULT_POLICY_ID,
+    *,
+    compute_scope: Optional[str] = None,
+    vcpu_per_physical_core: Optional[float] = None,
+    cpu_headroom_percent: Optional[float] = None,
+    memory_headroom_percent: Optional[float] = None,
+    memory_overcommit_ratio: Optional[float] = None,
+    failure_reserve_hosts: Optional[int] = None,
+    storage_headroom_percent: Optional[float] = None,
+) -> CapacityPolicy:
+    """Validate independent overrides without changing any unspecified assumption."""
+    policy_id = str(policy_id).strip().casefold()
+    if policy_id == "active_only":
+        raise ValueError(
+            "active_only was removed; use compute_scope='powered_on' and select "
+            "headroom, memory overcommit and resilience independently"
+        )
+    if policy_id not in POLICIES:
+        raise ValueError(f"unknown sizing policy: {policy_id}")
+    changes: Dict[str, Any] = {}
+    if compute_scope is not None:
+        compute_scope = str(compute_scope).strip().casefold()
+        if compute_scope not in COMPUTE_SCOPES:
+            raise ValueError(f"compute_scope must be one of {COMPUTE_SCOPES}")
+        changes["compute_scope"] = compute_scope
+    for name, value in (
+        ("vcpu_per_physical_core", vcpu_per_physical_core),
+        ("cpu_headroom_percent", cpu_headroom_percent),
+        ("memory_headroom_percent", memory_headroom_percent),
+        ("memory_overcommit_ratio", memory_overcommit_ratio),
+        ("failure_reserve_hosts", failure_reserve_hosts),
+        ("storage_headroom_percent", storage_headroom_percent),
+    ):
+        if value is None:
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError(f"{name} must be a finite number") from None
+        if isinstance(value, bool) or not math.isfinite(number):
+            raise ValueError(f"{name} must be a finite number")
+        if name in {"cpu_headroom_percent", "memory_headroom_percent"}:
+            if not 0 <= number < 100:
+                raise ValueError(f"{name} must be at least zero and below 100")
+        elif name == "vcpu_per_physical_core" and number <= 0:
+            raise ValueError(f"{name} must be greater than zero")
+        elif name == "memory_overcommit_ratio" and number < 1:
+            raise ValueError(f"{name} must be at least 1")
+        elif name == "failure_reserve_hosts":
+            if number not in (0, 1):
+                raise ValueError(f"{name} must be 0 or 1")
+            number = int(number)
+        elif name == "storage_headroom_percent" and number < 0:
+            raise ValueError("storage headroom percent must be a non-negative number")
+        changes[name] = number
+    return replace(POLICIES[policy_id], **changes)
 
 
 def _key(value: Any) -> str:
@@ -119,7 +168,7 @@ def _round(value: float, digits: int = 4) -> float:
     return round(float(value), digits)
 
 
-def _policy_payload(
+def capacity_policy_payload(
     policy: CapacityPolicy, target_id: str, storage_headroom_source: str
 ) -> Dict[str, Any]:
     payload = asdict(policy)
@@ -130,7 +179,7 @@ def _policy_payload(
         if target_id in {"avs", "gcve"} and policy.id == DEFAULT_POLICY_ID
         else "Recommended sizing assumptions"
         if policy.id == DEFAULT_POLICY_ID
-        else "Active-only sizing policy"
+        else "Selected sizing assumptions"
     )
     payload["storage_basis"] = (
         "provisioned_plus_growth"
@@ -148,7 +197,7 @@ def _recommendation_presentation(result: Mapping[str, Any]) -> Dict[str, Any]:
     )
     one_host_resilience = max(
         int(result["failure_cpu_floor"]), int(result["failure_memory_floor"])
-    )
+    ) if result["failure_reserve_hosts"] else None
     recommended = int(result["total_hosts"])
     normal_cpu_drives = int(result["normal_cpu_floor"]) == recommended
     normal_memory_drives = int(result["normal_memory_floor"]) == recommended
@@ -480,24 +529,21 @@ def _candidate_result(
     vcf_cores = _number(node.get("vcf_licensable_cores"))
     ratio = policy.vcpu_per_physical_core
     cpu_normal_capacity = cores * ratio * (1 - policy.cpu_headroom_percent / 100)
-    memory_normal_capacity = memory_gib * (1 - policy.memory_headroom_percent / 100)
+    memory_planning_capacity = memory_gib * policy.memory_overcommit_ratio
+    memory_normal_capacity = memory_planning_capacity * (1 - policy.memory_headroom_percent / 100)
 
     normal_cpu_floor = _ceil_ratio(_number(demand["vcpus"]), cpu_normal_capacity)
-    normal_memory_floor = (
-        _ceil_ratio(_number(demand["memory_gib"]), memory_normal_capacity)
-        if policy.memory_is_binding
-        else 0
-    )
+    normal_memory_floor = _ceil_ratio(_number(demand["memory_gib"]), memory_normal_capacity)
     failure_cpu_floor = (
         _ceil_ratio(_number(demand["vcpus"]), cores * ratio)
         + policy.failure_reserve_hosts
-        if _number(demand["vcpus"]) > 0
+        if policy.failure_reserve_hosts and _number(demand["vcpus"]) > 0
         else 0
     )
     failure_memory_floor = (
-        _ceil_ratio(_number(demand["memory_gib"]), memory_gib)
+        _ceil_ratio(_number(demand["memory_gib"]), memory_planning_capacity)
         + policy.failure_reserve_hosts
-        if policy.memory_is_binding and _number(demand["memory_gib"]) > 0
+        if policy.failure_reserve_hosts and _number(demand["memory_gib"]) > 0
         else 0
     )
     floors = {
@@ -523,23 +569,21 @@ def _candidate_result(
     )
     failure_cpu_percent = utilization(
         _number(demand["vcpus"]), cores * ratio, surviving_hosts
-    )
+    ) if policy.failure_reserve_hosts else None
     normal_memory_percent = utilization(
         _number(demand["memory_gib"]), memory_gib, total_hosts
     )
     failure_memory_percent = utilization(
         _number(demand["memory_gib"]), memory_gib, surviving_hosts
-    )
+    ) if policy.failure_reserve_hosts else None
+    # Validate against planning capacity: physical RAM allocation
+    # may exceed 100% only within the user's explicit overcommit ratio.
     one_host_loss_validated = (
         total_hosts >= provider_minimum_hosts
         and surviving_hosts > 0
-        and (failure_cpu_percent is None or failure_cpu_percent <= 100)
-        and (
-            not policy.memory_is_binding
-            or failure_memory_percent is None
-            or failure_memory_percent <= 100
-        )
-    )
+        and _number(demand["vcpus"]) <= cores * ratio * surviving_hosts + 1e-9
+        and _number(demand["memory_gib"]) <= memory_planning_capacity * surviving_hosts + 1e-9
+    ) if policy.failure_reserve_hosts else None
     result = {
         "node_type": node["id"],
         "shape_series": node.get("shape_series") or node["id"],
@@ -548,6 +592,7 @@ def _candidate_result(
         "vcf_licensable_cores_per_host": vcf_cores,
         "memory_gib_per_host": memory_gib,
         "provider_minimum_hosts": provider_minimum_hosts,
+        "failure_reserve_hosts": policy.failure_reserve_hosts,
         "normal_cpu_floor": normal_cpu_floor,
         "normal_memory_floor": normal_memory_floor,
         "failure_cpu_floor": failure_cpu_floor,
@@ -578,7 +623,7 @@ def _candidate_result(
     result["valid"] = (
         not result["maximum_hosts_exceeded"]
         and result["largest_vm_memory_fits_one_host"]
-        and result["one_host_loss_validated"]
+        and (not policy.failure_reserve_hosts or result["one_host_loss_validated"])
     )
     return result
 
@@ -727,32 +772,34 @@ def size_environment(
     target_node: Optional[str] = None,
     target_cpu_vendor: Optional[str] = None,
     primary_source_cluster: Optional[str] = None,
+    compute_scope: Optional[str] = None,
+    vcpu_per_physical_core: Optional[float] = None,
+    cpu_headroom_percent: Optional[float] = None,
+    memory_headroom_percent: Optional[float] = None,
+    memory_overcommit_ratio: Optional[float] = None,
+    failure_reserve_hosts: Optional[int] = None,
     storage_headroom_percent: Optional[float] = None,
     prepared: Optional[Mapping[str, Any]] = None,
     target_profile_override: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Size one cloud VMware target from normalized RVTools rows."""
     target_id = str(target_id).strip().casefold()
-    policy_id = str(policy_id).strip().casefold()
     topology = str(topology).strip().casefold()
-    if policy_id not in POLICIES:
-        raise ValueError(f"unknown sizing policy: {policy_id}")
+    policy = resolve_capacity_policy(
+        policy_id,
+        compute_scope=compute_scope,
+        vcpu_per_physical_core=vcpu_per_physical_core,
+        cpu_headroom_percent=cpu_headroom_percent,
+        memory_headroom_percent=memory_headroom_percent,
+        memory_overcommit_ratio=memory_overcommit_ratio,
+        failure_reserve_hosts=failure_reserve_hosts,
+        storage_headroom_percent=storage_headroom_percent,
+    )
     if topology not in {"consolidated", "source_aligned"}:
         raise ValueError(f"unknown sizing topology: {topology}")
-    policy = POLICIES[policy_id]
     storage_headroom_source = (
         "user_selected" if storage_headroom_percent is not None else "default"
     )
-    if storage_headroom_percent is not None:
-        storage_headroom_percent = float(storage_headroom_percent)
-        if (
-            not math.isfinite(storage_headroom_percent)
-            or storage_headroom_percent < 0
-        ):
-            raise ValueError("storage headroom percent must be a non-negative number")
-        policy = replace(
-            policy, storage_headroom_percent=storage_headroom_percent
-        )
     if target_profile_override is None and target_id not in PROFILES:
         raise ValueError(f"unknown sizing target: {target_id}")
     if topology == "source_aligned":
@@ -830,7 +877,7 @@ def size_environment(
     templates = [row for row in scoped_inventory if row["template"]]
     compute_records = (
         workloads
-        if policy.compute_scope == "all_non_template_vms"
+        if policy.compute_scope == "all"
         else [row for row in workloads if _is_powered_on(row["power_state"])]
     )
     storage_records = scoped_inventory
@@ -1005,13 +1052,13 @@ def size_environment(
             if all(row["status"] == "complete" for row in cluster_results)
             else "attention_required"
         ),
-        "engine_version": "1.1",
+        "engine_version": "1.2",
         "target": {
             "id": target_id,
             "name": profile["name"],
             "catalog_reviewed": profile["catalog_reviewed"],
         },
-        "policy": _policy_payload(policy, target_id, storage_headroom_source),
+        "policy": capacity_policy_payload(policy, target_id, storage_headroom_source),
         "topology": {
             "id": topology,
             "display_name": (

@@ -176,7 +176,7 @@ class ParseInventoryTests(unittest.TestCase):
     def test_extracts_normalized_inventory_and_capacity(self):
         result = PARSER.analyze_workbook(self.path)
 
-        self.assertEqual(result["schema_version"], "4.1")
+        self.assertEqual(result["schema_version"], "4.2")
         self.assertEqual(result["source"]["file"], self.path.name)
         self.assertEqual(result["source"]["rvtools_version"], "4.7.1")
         self.assertEqual(result["inventory"]["vms"], 2)
@@ -542,7 +542,7 @@ class ParseInventoryTests(unittest.TestCase):
         self.assertEqual(completed.returncode, 0, completed.stderr)
         self.assertTrue(completed.stdout.strip())
         payload = json.loads(completed.stdout)
-        self.assertEqual(payload["schema_version"], "4.1")
+        self.assertEqual(payload["schema_version"], "4.2")
         self.assertTrue(all(len(item["examples"]) <= 1 for item in payload["detections"]))
 
     def test_adds_a_selected_target_migration_assessment(self):
@@ -550,21 +550,24 @@ class ParseInventoryTests(unittest.TestCase):
 
         self.assertEqual(result["migration"]["target"]["id"], "avs")
         self.assertEqual(result["migration"]["scope"]["workload_vms"], 2)
-        self.assertEqual(result["sizing"]["status"], "attention_required")
+        self.assertEqual(result["sizing"]["status"], "complete")
         self.assertEqual(result["sizing"]["policy"]["id"], "recommended")
+        self.assertEqual(result["sizing"]["totals"]["compute_vms"], 1)
         self.assertEqual(result["sizing"]["topology"]["id"], "consolidated")
 
-    def test_accepts_an_explicit_active_only_source_aligned_sizing_policy(self):
+    def test_accepts_an_independent_all_vm_compute_scope(self):
         result = PARSER.analyze_workbook(
             self.path,
             target="ocvs",
-            sizing_policy="active_only",
+            compute_scope="all",
             sizing_topology="source_aligned",
             primary_source_cluster="cluster-a",
         )
 
         self.assertEqual(result["sizing"]["status"], "complete")
-        self.assertEqual(result["sizing"]["policy"]["id"], "active_only")
+        self.assertEqual(result["sizing"]["policy"]["id"], "recommended")
+        self.assertEqual(result["sizing"]["policy"]["compute_scope"], "all")
+        self.assertEqual(result["sizing"]["totals"]["compute_vms"], 2)
         self.assertEqual(result["sizing"]["topology"]["id"], "source_aligned")
         self.assertEqual(result["sizing"]["topology"]["primary_target_cluster"], "cluster-a")
         by_vm = {row["vm"]: row for row in result["migration"]["vm_methods"]}
@@ -579,6 +582,37 @@ class ParseInventoryTests(unittest.TestCase):
 
         self.assertEqual(result["sizing"]["policy"]["storage_headroom_percent"], 0)
         self.assertEqual(result["sizing"]["policy"]["storage_headroom_source"], "default")
+
+    def test_sizing_settings_are_validated_even_before_a_topology_is_chosen(self):
+        workbook = load_workbook(self.path)
+        workbook["vHost"].cell(row=3, column=2).value = "cluster-b"
+        workbook.save(self.path)
+        workbook.close()
+        for settings in ({"compute_scope": "invalid"}, {"cpu_headroom_percent": 100}, {"memory_overcommit_ratio": 0}, {"failure_reserve_hosts": 2}):
+            with self.subTest(settings=settings), self.assertRaises(ValueError):
+                PARSER.analyze_workbook(self.path, target="ocvs", **settings)
+        unresolved = PARSER.analyze_workbook(self.path, target="ocvs", cpu_headroom_percent=10, compute_scope="all")
+        self.assertEqual(unresolved["sizing"]["status"], "topology_selection_required")
+        self.assertEqual(unresolved["sizing"]["policy"]["cpu_headroom_percent"], 10)
+        self.assertEqual(unresolved["sizing"]["policy"]["compute_scope"], "all")
+
+    def test_cli_forwards_independent_sizing_settings(self):
+        completed = subprocess.run(
+            [sys.executable, str(MODULE_PATH), str(self.path), "--target", "ocvs",
+             "--sizing-topology", "source_aligned", "--compute-scope", "all",
+             "--vcpu-per-core", "3", "--cpu-headroom-percent", "10",
+             "--memory-headroom-percent", "15", "--memory-overcommit-ratio", "1.2",
+             "--failure-reserve-hosts", "0"],
+            check=False, capture_output=True, text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        policy = json.loads(completed.stdout)["sizing"]["policy"]
+        self.assertEqual(policy["compute_scope"], "all")
+        self.assertEqual(policy["vcpu_per_physical_core"], 3)
+        self.assertEqual(policy["cpu_headroom_percent"], 10)
+        self.assertEqual(policy["memory_headroom_percent"], 15)
+        self.assertEqual(policy["memory_overcommit_ratio"], 1.2)
+        self.assertEqual(policy["failure_reserve_hosts"], 0)
 
     def test_explicit_storage_growth_is_forwarded_to_the_sizing_engine(self):
         result = PARSER.analyze_workbook(

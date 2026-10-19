@@ -38,7 +38,7 @@ For every hygiene assessment or OCVS, AVS, or GCVE migration report with `vInfo`
 
 For an OCVS, AVS, or GCVE sizing report with more than one source cluster in scope, inspect the scope first and ask whether to retain the existing cluster structure or consolidate workloads unless the request already makes that choice. When neither cluster design nor storage basis is supplied, ask for both in one concise question: retain or consolidate, and use provisioned storage as-is or add a named growth allowance. If the cluster design is supplied but storage is not, use provisioned storage with no growth allowance. Do not generate the sizing report while the cluster design is unresolved. Follow [references/hcx_common.md](references/hcx_common.md) and [references/sizing.md](references/sizing.md). A single source cluster does not require a cluster-design question.
 
-For every cloud sizing request, also read [references/sizing.md](references/sizing.md). Use the deterministic Python result as the calculation record. The `recommended` policy is the baseline unless the user deliberately asks for `active_only` or supplies different assumptions.
+For every cloud sizing request, also read [references/sizing.md](references/sizing.md). Use the deterministic Python result as the calculation record. The `recommended` baseline sizes compute from powered-on non-template VMs, with 4:1 CPU allocation, 20% CPU/RAM headroom, no memory overcommit and one-host resilience. Compute scope, ratios, headroom and resilience are independent settings; changing one must not change the others.
 
 For a cloud sizing report or BOM request, also read [references/bom.md](references/bom.md). Resolve the sizing topology first, then append the provider-specific BOM from the same sizing result. Default to USD unless the user asks for another currency. Require an exact region for priced AVS and GCVE output; keep the BOM unpriced rather than guessing when pricing inputs or API access are unavailable.
 
@@ -81,7 +81,7 @@ python3 scripts/parse_rvtools.py /absolute/path/to/export.xlsx --target ocvs \
 
 Provisioned storage is the default. Add `--storage-headroom-percent 25` only when the user deliberately requests a 25% storage growth allowance.
 
-Use `--sizing-policy active_only` only when the user deliberately selects the less conservative active-workload model. Use `--primary-source-cluster` when the primary or unified-management mapping is known.
+Use `--compute-scope all` when the user wants all non-template power states included in compute demand. Powered-on-only compute is the default and must not imply zero headroom or memory overcommit. Use the independent controls in [references/sizing.md](references/sizing.md) for explicit changes to CPU ratio, CPU/RAM headroom, a bounded memory-overcommit ratio, or host resilience. Keep storage for all selected VMs and templates regardless of compute scope. Use `--primary-source-cluster` when the primary or unified-management mapping is known.
 
 Use `--vcf-entitlement-cores` only when the user supplies or confirms the actual portable VCF entitlement. Otherwise the BOM compares the target with the in-scope hosts' calculated requirement and labels that figure as a hardware proxy.
 
@@ -200,6 +200,7 @@ Before finishing:
 - Confirm a VCF licensing result uses physical cores with the per-CPU minimum, states the included host scope, and withholds the estate total when CPU topology is incomplete.
 - Confirm every cloud-node recommendation distinguishes configured compute from full physical silicon and uses `vcf_licensable_cores`, not configured or disabled cores, for VCF licensing.
 - Confirm every sizing report uses the deterministic engine result, names the selected assumptions, explains what determined each host count, and does not add a failure host blindly to the provider minimum.
+- Confirm powered-on-only is the default compute scope, the selected capacity controls are independent, and powered-off/template storage remains included. Show no-reserve checks as not evaluated, never as successful one-host resilience.
 - Confirm OCVS reports call the recommended profile **Recommended OCVS planning assumptions**. Confirm AVS and GCVE reports call it **Recommended cloud sizing assumptions** and do not attribute it to Oracle.
 - Confirm every multi-cluster cloud sizing report records the user's cluster-design choice, shows the source-to-target mapping, and includes **What consolidation would change** using the same scope and assumptions.
 - Confirm the storage basis is explicit. Provisioned storage has no automatic growth allowance; any positive allowance must be user-selected and shown as such.

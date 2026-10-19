@@ -56,7 +56,7 @@ class SkillContractTests(unittest.TestCase):
         )
 
         self.assertEqual(manifest["name"], "rvtools-analyzer")
-        self.assertEqual(manifest["version"], "0.6.1")
+        self.assertEqual(manifest["version"], "0.6.2")
         self.assertEqual(manifest["repository"], "https://github.com/KimTholstorf/rvtools-skill")
         self.assertEqual(manifest["license"], "MIT")
         self.assertEqual(manifest["skills"], "./skills/")
@@ -155,6 +155,7 @@ class SkillContractTests(unittest.TestCase):
         self.assertIn("MIT License", license_text)
         self.assertIn("Copyright (c) 2026 Kim Tholstorf", license_text)
         changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("## [0.6.2] - 2026-10-19", changelog)
         self.assertIn("## [0.6.1] - 2026-09-14", changelog)
         self.assertIn("## [0.6.0] - 2026-09-12", changelog)
         self.assertIn("## [0.5.0] - 2026-09-11", changelog)
@@ -361,14 +362,17 @@ class SkillContractTests(unittest.TestCase):
         sizing = (ROOT / "references" / "sizing.md").read_text(encoding="utf-8")
 
         for required in (
-            "all non-template workloads, regardless of power state",
+            "powered-on non-template workloads",
             "4:1 configured-vCPU-to-configured-physical-core ratio",
             "20% normal-operation CPU headroom",
             "20% normal-operation memory headroom",
             "one-host-loss CPU and memory validation",
             "provisioned storage with no automatic growth allowance",
             "Limited storage headroom",
-            "Use `active_only` only when the user deliberately selects it",
+            "--compute-scope all",
+            "--memory-overcommit-ratio",
+            "--cpu-headroom-percent",
+            "--failure-reserve-hosts",
         ):
             self.assertIn(required, sizing)
         self.assertIn("Python sizing result", common)

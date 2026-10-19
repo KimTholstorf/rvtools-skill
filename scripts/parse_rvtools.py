@@ -29,14 +29,17 @@ from rvtools.bom import (
 )
 from rvtools.licensing import summarize_vcf_hosts
 from rvtools.sizing import (
+    COMPUTE_SCOPES,
     DEFAULT_POLICY_ID,
     POLICIES,
+    capacity_policy_payload,
     prepare_sizing_input,
+    resolve_capacity_policy,
     size_environment,
 )
 
 
-SCHEMA_VERSION = "4.1"
+SCHEMA_VERSION = "4.2"
 ANALYSIS_SHEETS = (
     "vHost",
     "vCluster",
@@ -961,6 +964,12 @@ def analyze_workbook(
     sizing_policy=DEFAULT_POLICY_ID,
     sizing_topology=None,
     primary_source_cluster=None,
+    compute_scope=None,
+    vcpu_per_physical_core=None,
+    cpu_headroom_percent=None,
+    memory_headroom_percent=None,
+    memory_overcommit_ratio=None,
+    failure_reserve_hosts=None,
     storage_headroom_percent=None,
     include_bom=False,
     currency=DEFAULT_CURRENCY,
@@ -978,13 +987,16 @@ def analyze_workbook(
         raise ValueError("currency must be a three-letter ISO code")
     if vcf_entitlement_cores is not None and float(vcf_entitlement_cores) < 0:
         raise ValueError("VCF entitlement cores cannot be negative")
-    if storage_headroom_percent is not None:
-        storage_headroom_percent = float(storage_headroom_percent)
-        if (
-            not math.isfinite(storage_headroom_percent)
-            or storage_headroom_percent < 0
-        ):
-            raise ValueError("storage headroom percent must be a non-negative number")
+    sizing_settings = {
+        "compute_scope": compute_scope,
+        "vcpu_per_physical_core": vcpu_per_physical_core,
+        "cpu_headroom_percent": cpu_headroom_percent,
+        "memory_headroom_percent": memory_headroom_percent,
+        "memory_overcommit_ratio": memory_overcommit_ratio,
+        "failure_reserve_hosts": failure_reserve_hosts,
+        "storage_headroom_percent": storage_headroom_percent,
+    }
+    selected_policy = resolve_capacity_policy(sizing_policy, **sizing_settings)
     path = Path(path)
     workbook = load_workbook(path, read_only=True, data_only=True)
     try:
@@ -1107,6 +1119,10 @@ def analyze_workbook(
                 "status": "topology_selection_required",
                 "default_policy_id": sizing_policy,
                 "available_policy_ids": list(POLICIES),
+                "policy": capacity_policy_payload(
+                    selected_policy, target,
+                    "user_selected" if storage_headroom_percent is not None else "default",
+                ),
                 "available_topologies": ["consolidated", "source_aligned"],
                 "available_cluster_designs": [
                     {
@@ -1153,7 +1169,7 @@ def analyze_workbook(
                     target_node=target_node,
                     target_cpu_vendor=target_cpu_vendor,
                     primary_source_cluster=primary_source_cluster,
-                    storage_headroom_percent=storage_headroom_percent,
+                    **sizing_settings,
                     prepared=prepared_sizing_input,
                 )
             except ValueError as exc:
@@ -1257,6 +1273,30 @@ def main(argv=None):
         help="Capacity policy for target sizing (default: recommended)",
     )
     parser.add_argument(
+        "--compute-scope", choices=COMPUTE_SCOPES,
+        help="VMs included in compute demand: powered_on (default) or all; storage scope is unchanged",
+    )
+    parser.add_argument(
+        "--vcpu-per-core", type=float,
+        help="Configured vCPUs per physical core (default: 4)",
+    )
+    parser.add_argument(
+        "--cpu-headroom-percent", type=float,
+        help="Normal-operation CPU headroom, at least zero and below 100 (default: 20)",
+    )
+    parser.add_argument(
+        "--memory-headroom-percent", type=float,
+        help="Normal-operation RAM headroom, at least zero and below 100 (default: 20)",
+    )
+    parser.add_argument(
+        "--memory-overcommit-ratio", type=float,
+        help="Maximum aggregate configured RAM per physical GiB, at least 1 (default: 1, no overcommit)",
+    )
+    parser.add_argument(
+        "--failure-reserve-hosts", type=int, choices=(0, 1),
+        help="Unavailable hosts to allow for per target cluster: 0 or 1 (default: 1)",
+    )
+    parser.add_argument(
         "--sizing-topology",
         choices=("consolidated", "source_aligned"),
         help="Target cluster topology; required when multiple source clusters are in scope",
@@ -1330,6 +1370,12 @@ def main(argv=None):
             sizing_policy=args.sizing_policy,
             sizing_topology=args.sizing_topology,
             primary_source_cluster=args.primary_source_cluster,
+            compute_scope=args.compute_scope,
+            vcpu_per_physical_core=args.vcpu_per_core,
+            cpu_headroom_percent=args.cpu_headroom_percent,
+            memory_headroom_percent=args.memory_headroom_percent,
+            memory_overcommit_ratio=args.memory_overcommit_ratio,
+            failure_reserve_hosts=args.failure_reserve_hosts,
             storage_headroom_percent=args.storage_headroom_percent,
             include_bom=args.include_bom,
             currency=args.currency,

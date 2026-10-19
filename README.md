@@ -53,9 +53,9 @@ Assess this RVTools export for an OCVS migration using HCX and create an HTML re
 
 Sizing for OCVS, AVS, and GCVE comes from a shared Python engine, so the same workbook and assumptions produce the same result in Claude and Codex. The report explains the recommendation in business terms: the hosts needed for the workload, the hosts needed to keep running when one is unavailable, the cloud service minimum, and what ultimately determined the result. Detailed CPU and memory calculations remain available for technical review.
 
-The recommended planning assumptions include all non-template workloads, regardless of power state. They use a 4:1 vCPU-to-physical-core ratio, 20% CPU and memory headroom, configured memory as a sizing constraint, and a check that the workloads still fit when one host is unavailable. Storage defaults to the capacity already provisioned to VMs and templates; no growth allowance is added unless you request one.
+By default, sizing uses powered-on, non-template VMs for CPU and RAM demand. It keeps a 4:1 vCPU-to-physical-core ratio, 20% CPU and RAM headroom, no memory overcommit, and enough capacity for one host to be unavailable. Powered-off VMs and templates still count toward provisioned storage. No storage growth allowance is added unless you request one.
 
-If you want a leaner estimate, ask for the active-only policy. That option sizes compute from powered-on, non-template VMs, applies no generic CPU or memory headroom, and allows aggregate memory overcommit. It still checks that processing demand fits when one host is unavailable and that the largest VM fits on a host. The selected assumptions are always named in the result.
+Each setting can be changed independently. Ask to include powered-off VMs, use a different CPU ratio or headroom percentage, allow a specific memory-overcommit ratio, or remove the host-failure reserve. Changing which VMs count toward compute does not quietly change anything else. Memory overcommit needs an explicit limit, such as 1.2:1; it never means unlimited allocation. Reports show the settings used and distinguish an unselected resilience check from a successful one.
 
 If the scope contains several clusters, the skill asks whether to retain the existing cluster structure or consolidate workloads into fewer target clusters. If you have not chosen a storage basis either, it asks whether to use provisioned storage as-is or add a specific growth allowance. Once the cluster design is known, unspecified storage defaults to provisioned capacity. The report sizes the selected design in detail and shows what consolidation would change, including the difference in cluster count, purchased hosts, resilience capacity, and VCF licences.
 
@@ -165,7 +165,8 @@ Attach an RVTools `.xlsx` export, or provide its local path, and ask something l
 - “Show the CPU, memory, and raw storage for GCVE ve2-standard-128.”
 - “Size this estate for OCVS with the recommended assumptions and retain the existing populated cluster structure.”
 - “Use provisioned storage as-is, but show what a 25% storage allowance would add to the monthly estimate.”
-- “Show how the OCVS result changes with active-only sizing.”
+- “Compare powered-on-only sizing with all non-template VMs, keeping every other assumption the same.”
+- “Size this estate for OCVS with 10% CPU and RAM headroom, no memory overcommit, and one-host resilience.”
 - “Create an OCVS sizing report with a provider-specific bill of materials in EUR.”
 - “Price this AVS sizing in West Europe and show which lines could not be priced.”
 

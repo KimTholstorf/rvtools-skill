@@ -43,7 +43,7 @@ Broadcom notes that migration scale depends on storage, hosts, bandwidth, latenc
 
 ## Deterministic sizing
 
-For OCVS, AVS, or GCVE sizing, read and follow [sizing.md](sizing.md). Use the Python sizing result as the calculation record. The recommended policy is the default unless the user deliberately selects `active_only` or supplies their own assumptions.
+For OCVS, AVS, or GCVE sizing, read and follow [sizing.md](sizing.md). Use the Python sizing result as the calculation record. Recommended compute scope is powered-on non-template VMs. CPU/RAM headroom, allocation ratios and resilience are separate controls; changing compute scope must not relax them. Storage includes all selected VMs and templates regardless of power state.
 
 Do not add N+1 mechanically to a provider minimum. The engine tests normal-operation capacity, one-host-loss capacity, and the provider minimum independently, then uses the highest result.
 
