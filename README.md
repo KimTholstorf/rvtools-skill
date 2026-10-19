@@ -144,7 +144,7 @@ For Codex:
 codex plugin marketplace upgrade rvtools-analyzer
 ```
 
-This refreshes the installed marketplace snapshot. Start a new Codex task afterward so it loads the updated plugin.
+This refreshes the installed marketplace snapshot. After updating, ask Codex to confirm which skill version is available in the current session. If it still sees the previous version, start a new task.
 
 ## Examples
 
