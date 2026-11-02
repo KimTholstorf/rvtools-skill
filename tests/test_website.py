@@ -195,7 +195,9 @@ class WebsiteTests(unittest.TestCase):
                 self.assertEqual(urlsplit(href).scheme, "https")
                 self.assertIn(urlsplit(href).netloc, {"github.com", "rvtools.help", "knowledge.broadcom.com"})
         links = {attrs.get("href") for tag, attrs in self.page.elements if tag == "a"}
-        self.assertIn("https://rvtools.help/", links)
+        anonymizer_links = [attrs["href"] for tag, attrs in self.page.elements
+                            if tag == "a" and urlsplit(attrs["href"]).netloc == "rvtools.help"]
+        self.assertEqual(anonymizer_links, ["https://rvtools.help/mask/"] * 2)
         self.assertIn(REPOSITORY + "#data-handling-and-privacy", links)
         self.assertIn(REPOSITORY + "#sample-reports", links)
 
