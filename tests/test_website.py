@@ -1,5 +1,6 @@
 import re
 import unittest
+import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -90,6 +91,20 @@ class WebsiteTests(unittest.TestCase):
                             for tag, attrs in self.page.elements))
         self.assertTrue(any(tag == "meta" and attrs.get("name") == "viewport"
                             for tag, attrs in self.page.elements))
+
+    def test_hero_wording_matches_the_github_banner(self):
+        banner = ET.parse(ROOT / "images/readme-hero.svg").getroot()
+        expected = " ".join("".join(node.itertext()) for node in
+                            banner.findall(".//{http://www.w3.org/2000/svg}text"))
+        intro = self.html.split('aria-labelledby="overview">', 1)[1].split('<div class="features">', 1)[0]
+        actual = " ".join(" ".join(LandingPage(intro).visible).split())
+        self.assertEqual(actual, expected)
+
+    def test_hero_title_uses_the_doubled_responsive_font_size(self):
+        rule = re.search(r"\.intro-title\s*\{([^}]+)\}", self.html).group(1)
+        size = re.search(r"font-size:\s*clamp\(([\d.]+)rem,\s*([\d.]+)vw,\s*([\d.]+)rem\)", rule)
+        self.assertIsNotNone(size)
+        self.assertEqual(tuple(float(value) for value in size.groups()), (2.8, 7.6, 3.5))
 
     def test_cli_commands_match_the_readme_and_copy_targets_exist(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
