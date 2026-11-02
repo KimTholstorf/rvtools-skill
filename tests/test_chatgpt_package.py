@@ -174,8 +174,11 @@ class ChatGPTPackageTests(unittest.TestCase):
                 else:
                     self.assertNotIn("requires_local_executor", extension)
                     entrypoint = archive.read("skills/rvtools-analyzer/SKILL.md").decode("utf-8")
-                    self.assertIn("\nname: rvtools-analyzer\n", entrypoint)
-                    self.assertIn("\n# RVTools Analyzer\n", entrypoint)
+                    for newline in ("\n", "\r\n"):
+                        with self.subTest(newline=repr(newline)):
+                            text = newline.join(entrypoint.splitlines())
+                            self.assertIn("name: rvtools-analyzer", text.splitlines())
+                            self.assertIn("# RVTools Analyzer", text.splitlines())
                     self.assertNotIn("RVTools Analyzer Cloud", entrypoint)
 
     def test_variants_share_all_calculations_but_have_separate_privacy_entrypoints(self):
