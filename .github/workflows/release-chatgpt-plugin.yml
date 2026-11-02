@@ -1,0 +1,111 @@
+name: Release ChatGPT plugin
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-chatgpt-plugin-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [desktop, cloud]
+    name: Package ${{ matrix.variant }}
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      WORKFLOW_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - name: Check out the tested commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve an exact release tag
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="$(git tag --points-at "$WORKFLOW_SHA" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1 || true)"
+          if [[ -z "$tag" ]]; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          version="${tag#v}"
+          codex_version="$(python -c 'import json; print(json.load(open(".codex-plugin/plugin.json"))["version"])')"
+          claude_version="$(python -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')"
+          if [[ "$version" != "$codex_version" || "$version" != "$claude_version" ]]; then
+            echo "Tag $tag does not match both plugin manifests" >&2
+            exit 1
+          fi
+          echo "eligible=true" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Download verified dependency wheels
+        if: steps.release.outputs.eligible == 'true'
+        run: python tools/package_chatgpt_plugin.py download-wheels --output dist/chatgpt-wheels
+
+      - name: Build and smoke-test the ChatGPT ZIP
+        if: steps.release.outputs.eligible == 'true'
+        id: package
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          PACKAGE_VARIANT: ${{ matrix.variant }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$RELEASE_VERSION"
+          variant="$PACKAGE_VARIANT"
+          archive="dist/rvtools-chatgpt-${variant}-${version}.zip"
+          python tools/package_chatgpt_plugin.py build --variant "$variant" --wheel-dir dist/chatgpt-wheels --output "$archive"
+          python tools/package_chatgpt_plugin.py smoke-test "$archive"
+          echo "archive=$archive" >> "$GITHUB_OUTPUT"
+
+      - name: Attach ZIP to the GitHub Release
+        if: steps.release.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+          ARCHIVE: ${{ steps.package.outputs.archive }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            if ! gh release create "$RELEASE_TAG" --verify-tag \
+              --title "RVTools Analyzer $RELEASE_VERSION" --generate-notes; then
+              # The independent Claude ZIP workflow may have created it first.
+              gh release view "$RELEASE_TAG" >/dev/null
+            fi
+          fi
+          asset_name="$(basename "$ARCHIVE")"
+          if gh release view "$RELEASE_TAG" --json assets --jq '.assets[].name' | grep -Fxq "$asset_name"; then
+            echo "$asset_name is already attached to $RELEASE_TAG"
+            exit 0
+          fi
+          gh release upload "$RELEASE_TAG" "$ARCHIVE"
+
+      - name: Record the manual OpenAI publication step
+        if: steps.release.outputs.eligible == 'true'
+        run: |
+          echo 'ChatGPT variant ZIP attached. Desktop and Cloud use separate plugin identities/listings. Upload each to OpenAI Plugins, complete applicable checks/review, and publish the approved version. This workflow does not publish to the public directory.' >> "$GITHUB_STEP_SUMMARY"

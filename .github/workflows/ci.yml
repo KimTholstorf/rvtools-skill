@@ -30,3 +30,26 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: "1"
         run: python -m unittest discover -s tests
+
+  chatgpt-package:
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [desktop, cloud]
+    name: ChatGPT ${{ matrix.variant }} package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download verified dependency wheels
+        run: python tools/package_chatgpt_plugin.py download-wheels --output dist/chatgpt-wheels
+      - name: Build the ChatGPT package
+        run: >-
+          python tools/package_chatgpt_plugin.py build
+          --variant ${{ matrix.variant }}
+          --wheel-dir dist/chatgpt-wheels
+          --output dist/chatgpt-ci.zip
+      - name: Exercise the packaged offline runtime with synthetic data
+        run: python tools/package_chatgpt_plugin.py smoke-test dist/chatgpt-ci.zip

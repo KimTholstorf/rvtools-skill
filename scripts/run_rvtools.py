@@ -47,6 +47,52 @@ def requirements_text():
     )
 
 
+def bundled_wheels(wheel_dir=None):
+    """Verify an optional offline bundle; never fall back from a broken bundle."""
+    wheel_dir = Path(wheel_dir) if wheel_dir is not None else Path(__file__).resolve().parent.parent / "wheels"
+    if not wheel_dir.exists():
+        if (wheel_dir.parent / ".rvtools-offline").exists():
+            raise RuntimeError("the offline package is missing its bundled wheels")
+        return None
+    if wheel_dir.is_symlink() or not wheel_dir.is_dir():
+        raise RuntimeError("the bundled wheel directory must be a regular directory")
+    present = {path.name for path in wheel_dir.iterdir()}
+    expected = {}
+    for name, version, digest in REQUIREMENTS:
+        candidates = {
+            f"{name.replace('-', '_')}-{version}-{tag}-none-any.whl"
+            for tag in ("py3", "py2.py3")
+        }
+        matches = present & candidates
+        if len(matches) != 1:
+            raise RuntimeError("the bundled wheels do not match the exact pinned wheel set")
+        expected[matches.pop()] = digest
+    if present != set(expected):
+        raise RuntimeError("the bundled wheels do not match the exact pinned wheel set")
+    for name, digest in expected.items():
+        wheel = wheel_dir / name
+        if wheel.is_symlink() or not wheel.is_file():
+            raise RuntimeError(f"the bundled wheel must be a regular file: {name}")
+        if hashlib.sha256(wheel.read_bytes()).hexdigest() != digest:
+            raise RuntimeError(f"the bundled wheel failed SHA-256 hash verification: {name}")
+    return wheel_dir
+
+
+def pip_install_arguments(python_executable, requirements_path, wheel_dir=None):
+    """Build the same pinned install for local and offline packaged runtimes."""
+    arguments = [str(python_executable), "-m", "pip"]
+    if wheel_dir is not None:
+        arguments.append("--isolated")
+    arguments.extend([
+        "install",
+        "--disable-pip-version-check", "--no-input", "--no-cache-dir",
+        "--require-hashes", "--only-binary=:all:", "--no-deps",
+    ])
+    if wheel_dir is not None:
+        arguments.extend(["--no-index", "--find-links", str(wheel_dir)])
+    return arguments + ["-r", str(requirements_path)]
+
+
 def runtime_base(environ=None, temp_root=None):
     """Choose private persistent plugin data, falling back to OS temporary storage."""
     environ = os.environ if environ is None else environ
@@ -127,6 +173,7 @@ def ensure_runtime():
     """Return a Python executable containing the exact pinned dependencies."""
     if sys.version_info < (3, 8):
         raise RuntimeError("RVTools Analyzer requires Python 3.8 or newer")
+    wheel_dir = bundled_wheels()
     if _environment_matches_current_process():
         return Path(sys.executable)
 
@@ -160,20 +207,9 @@ def ensure_runtime():
         _write_private(requirements_path, requirements_text())
         venv.EnvBuilder(with_pip=True, clear=False).create(runtime_dir)
         subprocess.run(
-            [
-                str(python_executable),
-                "-m",
-                "pip",
-                "install",
-                "--disable-pip-version-check",
-                "--no-input",
-                "--require-hashes",
-                "--only-binary=:all:",
-                "--no-deps",
-                "-r",
-                str(requirements_path),
-            ],
+            pip_install_arguments(python_executable, requirements_path, wheel_dir),
             check=True,
+            stdout=sys.stderr,
         )
         if not _environment_matches(python_executable):
             raise RuntimeError("the private RVTools runtime failed dependency verification")

@@ -12,7 +12,8 @@ jobs:
   package:
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push'
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -96,8 +97,12 @@ jobs:
             fi
             gh release upload "$RELEASE_TAG" "$ARCHIVE"
           else
-            gh release create "$RELEASE_TAG" "$ARCHIVE" \
+            if ! gh release create "$RELEASE_TAG" "$ARCHIVE" \
               --verify-tag \
               --title "RVTools Analyzer $RELEASE_VERSION" \
-              --generate-notes
+              --generate-notes; then
+              # Another independent packaging workflow may have created it first.
+              gh release view "$RELEASE_TAG" >/dev/null
+              gh release upload "$RELEASE_TAG" "$ARCHIVE"
+            fi
           fi

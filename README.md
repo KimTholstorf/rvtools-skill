@@ -25,7 +25,7 @@ All three reports use fully synthetic data and contain no customer-derived inven
 
 You do not need to run a full assessment to explore an RVTools export. Ask normal questions such as how many Linux VMs are powered on, which hosts have inactive Hyper-Threading, or what the CPU overcommit ratio is for a particular cluster. Follow-up questions can filter, group, count, or compare VMs, hosts, clusters, datastores, disks, networks, snapshots, licence inventory, migration results, cloud node types, and sizing results. Answers state the filters and defaults used, and report unknown or missing data instead of filling in the gaps.
 
-The first question creates a private local index that can be reused for the same workbook, making later questions faster. The index contains only approved inventory fields and leaves out annotations, snapshot descriptions, credentials, licence keys, serial numbers, and other sensitive free text. Straightforward questions get a direct answer; when you ask what the data means or what to do next, the skill applies the relevant health, migration, licensing, or sizing guidance.
+The first question creates a private index in the agent's execution environment that can be reused for the same workbook, making later questions faster. In a local session it stays on your machine; in a cloud chat it stays in that platform's workspace. The index contains only approved inventory fields and leaves out annotations, snapshot descriptions, credentials, licence keys, serial numbers, and other sensitive free text. Straightforward questions get a direct answer; when you ask what the data means or what to do next, the skill applies the relevant health, migration, licensing, or sizing guidance.
 
 [See conversational examples here](https://github.com/KimTholstorf/rvtools-skill#examples)
 
@@ -82,6 +82,8 @@ You will need:
 - Network access on first use if the pinned Python dependencies are not already available.
 
 The launcher does not use `sudo` or install packages globally. If the required packages are missing, it creates a private Python environment in the plugin's writable data directory and installs pinned, hash-verified versions of `openpyxl`, `et_xmlfile`, and `defusedxml` there.
+
+Both ChatGPT release bundles include those dependency wheels, so their Python setup does not need a package download. They still need Python, `venv`, and a writable code-execution workspace. Live pricing and vendor research need network access; unavailable sources are reported as gaps rather than guessed.
 
 ## Install and update
 
@@ -146,6 +148,21 @@ codex plugin marketplace upgrade rvtools-analyzer
 
 This refreshes the installed marketplace snapshot. After updating, ask Codex to confirm which skill version is available in the current session. If it still sees the previous version, start a new task.
 
+### ChatGPT plugin packages
+
+Releases include two ChatGPT packages, built from the same Python engine, analysis rules, references and report template:
+
+| Plugin | Release ZIP | File processing |
+| --- | --- | --- |
+| **RVTools Analyzer Desktop** | `rvtools-chatgpt-desktop-<version>.zip` | Local workbook paths, parsing, indexes and report files. Marked **Desktop only** and requires a local executor. |
+| **RVTools Analyzer** | `rvtools-chatgpt-cloud-<version>.zip` | Uploaded workbooks and downloadable reports in ChatGPT's cloud workspace. |
+
+Choose Desktop when the raw workbook must stay on your computer. It stops if local execution or file access is unavailable instead of requesting an upload. Relevant findings and tool results may still reach OpenAI's models, so local processing is not fully offline AI. Choose Cloud only when uploading the workbook is allowed by your customer's data policy. The Cloud package is designed for cloud use; it does not declare a platform-enforced cloud-only restriction.
+
+These are separate OpenAI plugin packages, not the Claude Desktop skill ZIP. Publishing them on GitHub does not add them to the public ChatGPT directory. Maintainers submit each through the OpenAI Plugins portal, complete applicable checks and review, and publish the approved version. Updates use a new ZIP on the corresponding existing listing. See the [OpenAI publishing guide](https://developers.openai.com/plugins/deploy/submission) and the build steps in [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Once installed, type `@RVTools` in a new chat and select **RVTools Analyzer** for uploaded files or **RVTools Analyzer Desktop** for local files. “Cloud” appears in the ZIP filename, not the plugin or skill name. Both packages link to [analyzer.rvtools.help](https://analyzer.rvtools.help/) and include the website's green chart icon. The existing Codex and Claude Code installation commands are unchanged.
+
 ## Examples
 
 Attach an RVTools `.xlsx` export, or provide its local path, and ask something like:
@@ -178,15 +195,19 @@ An RVTools export can describe nearly every corner of a VMware environment, so t
 
 Using a local path does not make the session fully offline. The AI platform may still process the question, selected findings, bounded query results, and report text. If the chat cannot access local files and the workbook must be attached, the platform's file-handling and retention terms apply. Use an account and data-control policy approved for the information in the export.
 
+The ChatGPT Desktop variant requires local execution and never asks for a workbook upload as a fallback. If local execution is unavailable, it stops. Using the Cloud variant is a separate choice to process an uploaded workbook in the platform's workspace; a desktop app window alone does not prove local execution. These instructions reduce exposure but are not a substitute for your organization's endpoint and network controls.
+
 The skill limits exposure by:
 
 - Reading the source in place, preserving it, and writing reports separately.
-- Keeping parser output and the private SQLite query index on the local filesystem.
+- Keeping parser output and the private SQLite query index in the authorized execution environment: local storage for local agents, or the platform's cloud workspace for uploaded workbooks.
 - Leaving annotations, snapshot descriptions, credentials, licence keys, serial numbers, and other sensitive free text out of the conversational index.
 - Returning counts and bounded examples instead of dumping full infrastructure inventories into the conversation.
 - Using only the minimum vendor and model identifiers needed for public hardware lifecycle research, never the raw workbook.
 
-The parser and query scripts contain no workbook-upload code. Network access may still be used on first run to download pinned Python dependencies from the configured package index. Lifecycle, compatibility, and current product checks may consult public vendor documentation using only the identifiers needed for the lookup. BOM pricing sends only the provider SKU, region, currency, and pricing model to the public Oracle, Azure, or Google catalog; it never sends workbook rows or customer inventory.
+The parser and query scripts contain no workbook-upload code. That does not make a workbook attached in ChatGPT or Claude Chat local: the platform has already received the file. Cloud workspaces and their files are subject to the platform's retention and access policies, and a temporary index may need rebuilding when the workspace resets.
+
+Local Codex and Claude installations may download pinned Python dependencies on first run; both ChatGPT ZIPs supply verified wheels for offline dependency setup. Lifecycle, compatibility, and current product checks may consult public vendor documentation using only the identifiers needed for the lookup. BOM pricing sends only the provider SKU, region, currency, and pricing model to the public Oracle, Azure, or Google catalog; it never sends workbook rows or customer inventory.
 
 ## Scope and limitations
 
@@ -210,9 +231,11 @@ claude plugin validate --strict .
 
 Codex plugin and skill manifests live under `.codex-plugin/`, `.agents/plugins/`, and `skills/`.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for repository structure, package builds and release checks. Claude Desktop and ChatGPT ZIPs have separate release workflows; both wait for successful CI on the exact tagged commit.
+
 ## Versioning
 
-RVTools Analyzer follows semantic versioning. Until 1.0, interfaces and finding thresholds may change as people use the skill and report what works. Claude and Codex plugin manifests always carry the same version.
+RVTools Analyzer follows semantic versioning. Until 1.0, interfaces and finding thresholds may change as people use the skill and report what works. Claude and Codex plugin manifests and both generated ChatGPT packages always carry the same version.
 
 ## License
 

@@ -2,6 +2,23 @@
 
 This file tracks each RVTools Analyzer release.
 
+## [0.6.3] - 2026-10-30
+
+### Added
+
+- Two ChatGPT plugin ZIPs: **RVTools Analyzer Desktop** for local workbook paths and **RVTools Analyzer** for uploaded workbooks. Only the latter's ZIP filename includes `cloud`. Both use the same Python engine, analysis rules, references and report template as the local skill.
+- A shared green chart icon, saved as the website favicon and bundled as the logo and composer icon in both plugin ZIPs. Their listing website is `https://analyzer.rvtools.help/`.
+- A Desktop-only executor requirement and separate privacy entry points. Desktop instructions stop when local execution is unavailable, never request a workbook upload as a fallback, and explain that local processing is not offline AI. Cloud instructions cover uploaded files, temporary storage and report downloads.
+- Pinned, hash-verified dependency wheels in both ChatGPT packages, so first-use Python setup can run without a package download. Missing or altered bundled wheels stop setup rather than trigger a network fallback.
+- A separate ChatGPT packaging workflow that waits for successful CI on the exact tagged commit and attaches both variant ZIPs to the GitHub release. Each has its own plugin identity; OpenAI submission, review and publication remain manual.
+- Package tests for variant identities, the Desktop executor flag, allowed files, shared-source parity, reproducible ZIPs and dependency integrity. Synthetic-workbook smoke tests exercise offline setup, parsing, sizing and queries for both variants in CI and before release upload.
+
+### Changed
+
+- Privacy guidance now distinguishes local file processing from workbooks uploaded to a cloud chat. Neither mode sends workbook rows to public pricing or documentation services.
+- The independent ZIP workflows handle simultaneous GitHub release creation. Local launcher setup messages go to stderr so first-use dependency installation does not contaminate JSON results.
+- Sizing, analysis rules and report layout are unchanged.
+
 ## [0.6.2] - 2026-10-19
 
 ### Changed

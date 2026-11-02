@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Ask questions about your VMware estate. Turn RVTools exports into health checks, cloud migration assessments, sizing and cost estimates with Claude or Codex.">
+  <meta name="theme-color" content="#176447">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src https://api.github.com; img-src 'self'; base-uri 'none'; form-action 'none'">
+  <link rel="canonical" href="https://analyzer.rvtools.help/">
+  <link rel="icon" type="image/png" sizes="512x512" href="./favicon.png">
+  <title>RVTools Analyzer — understand your VMware estate</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --accent: #176447;
+      --accent-hover: #104d35;
+      --accent-bg: #edf6f0;
+      --ink: #202c26;
+      --muted: #5a6860;
+      --border: #dce5df;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f5f7fa;
+      color: var(--ink);
+      line-height: 1.45;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); text-underline-offset: 3px; }
+    a:hover { color: var(--accent-hover); }
+    a:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    .skip { position: absolute; top: -5rem; left: 1rem; padding: .65rem 1rem; background: white; z-index: 2; }
+    .skip:focus { top: 1rem; }
+    header { background: var(--accent); color: white; padding: 1.25rem 2rem; }
+    .header-inner { display: flex; align-items: center; justify-content: space-between; gap: 1rem; line-height: normal; }
+    .brand { display: flex; align-items: center; gap: .75rem; }
+    h1 { font-size: 1.3rem; font-weight: 600; line-height: normal; }
+    .tagline { font-size: .85rem; color: #e1eee6; margin-top: .15rem; }
+    nav { display: flex; flex-wrap: wrap; gap: 1.25rem; font-size: .85rem; }
+    header a { color: white; text-decoration: none; }
+    header a:hover { color: white; text-decoration: underline; }
+    header a:focus-visible { outline-color: white; }
+    nav a { display: inline-flex; align-items: center; min-height: 28px; }
+    main { width: 100%; max-width: 1040px; margin: 1.1rem auto; padding: 0 1.5rem; }
+    .card { background: white; border-radius: 10px; box-shadow: 0 2px 12px rgb(0 0 0 / 6%); padding: 1.15rem 1.3rem; margin-bottom: 1rem; }
+    .card h2 { font-size: .8rem; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); margin-bottom: .65rem; }
+    .intro-title { font-size: clamp(1.4rem, 3.8vw, 1.75rem); letter-spacing: -.025em; font-weight: 650; line-height: 1.2; margin-bottom: .4rem; }
+    .lead { color: var(--muted); font-size: .9rem; }
+    .features { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1rem 0 .8rem; }
+    .feature-column { display: flex; flex-direction: column; gap: .75rem; }
+    .feature-topic h3 { font-size: .9rem; margin-bottom: .25rem; }
+    .feature-topic ul { padding-left: 1rem; color: var(--muted); font-size: .85rem; }
+    .feature-topic li + li { margin-top: .25rem; }
+    .examples { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem 1rem; list-style: none; margin: .7rem 0; }
+    .examples li { min-width: 0; }
+    .example-platform { display: block; color: var(--muted); font-size: .75rem; font-weight: 600; margin-bottom: .25rem; }
+    .examples pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    details { margin-top: .65rem; }
+    summary { width: fit-content; color: var(--accent); font-size: .85rem; font-weight: 600; cursor: pointer; }
+    summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+    .text-links { display: flex; flex-wrap: wrap; gap: .35rem 1.25rem; font-size: .85rem; font-weight: 600; }
+    .install + .install { margin-top: .85rem; }
+    .install-heading { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin-bottom: .35rem; }
+    h3 { font-size: .95rem; font-weight: 650; }
+    button { font: inherit; font-size: .75rem; color: var(--accent); border: 1px solid var(--border); background: white; border-radius: 5px; padding: .3rem .65rem; cursor: pointer; }
+    button:hover { background: var(--accent-bg); border-color: #a6c4b3; }
+    pre { padding: .6rem .85rem; background: #f3f6f4; border: 1px solid var(--border); border-radius: 7px; overflow-x: auto; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .78rem; line-height: 1.65; }
+    .note { font-size: .79rem; color: var(--muted); margin-top: .6rem; }
+    .packages { display: grid; grid-template-columns: 1fr 1fr; gap: .7rem; }
+    .package { display: flex; flex-direction: column; align-items: flex-start; border: 1px solid var(--border); border-radius: 8px; padding: .85rem; }
+    .badge { display: inline-block; font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .055em; background: var(--accent-bg); color: var(--accent); border-radius: 4px; padding: .15rem .45rem; margin-bottom: .35rem; }
+    .package p { font-size: .85rem; color: var(--muted); margin: .25rem 0 .6rem; flex: 1; }
+    .button { display: inline-flex; gap: .5rem; align-items: center; padding: .55rem .85rem; border-radius: 6px; background: var(--accent); color: white; font-size: .8rem; font-weight: 600; text-decoration: none; }
+    .button:hover { color: white; background: var(--accent-hover); }
+    .claude-chat { display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--border); margin-top: .75rem; padding-top: .75rem; }
+    .claude-chat p { color: var(--muted); font-size: .83rem; margin-top: .2rem; }
+    .claude-chat a { font-size: .83rem; font-weight: 600; white-space: nowrap; }
+    .privacy { background: var(--accent-bg); border: 1px solid #d4e6da; box-shadow: none; }
+    .privacy p { font-size: .87rem; color: #3f5548; margin-bottom: .5rem; }
+    footer { display: flex; justify-content: space-between; flex-wrap: wrap; gap: .5rem; color: var(--muted); font-size: .75rem; padding: 0 .1rem 1rem; }
+    footer a { text-decoration: none; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+    @media (max-width: 600px) {
+      .header-inner { align-items: flex-start; flex-direction: column; gap: .8rem; }
+      nav { font-size: .8rem; }
+      main { padding: 0 1rem; margin-top: .85rem; }
+      .card { padding: 1rem; margin-bottom: .85rem; }
+      .features, .packages, .examples { grid-template-columns: 1fr; }
+      .features { gap: .8rem; }
+      .claude-chat { align-items: flex-start; flex-direction: column; gap: .6rem; }
+      code { font-size: .73rem; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header>
+    <div class="header-inner">
+      <div class="brand">
+        <div><h1>RVTools Analyzer</h1><p class="tagline">Understand your VMware estate.</p></div>
+      </div>
+      <nav aria-label="Main navigation">
+        <a href="#downloads">Install</a>
+        <a href="https://rvtools.help/">Anonymizer ↗</a>
+        <a href="https://github.com/KimTholstorf/rvtools-skill">GitHub ↗</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="card" aria-labelledby="overview">
+      <h2 id="overview">Health Checks + Sizing &amp; Migration Assessments</h2>
+      <p class="intro-title">Your VMware estate, explained.</p>
+      <p class="lead">Ask questions about your inventory. Get health checks, migration assessments and cloud sizing from the same RVTools workbook.</p>
+      <div class="features">
+        <div class="feature-column">
+          <section class="feature-topic" aria-labelledby="inventory-features">
+            <h3 id="inventory-features">Inventory &amp; consolidation</h3>
+            <ul>
+              <li data-readme-feature="1">Answer questions about VMs, operating systems, power states, hosts, clusters, and hardware.</li>
+              <li data-readme-feature="2">Calculate CPU and memory overcommit ratios.</li>
+            </ul>
+          </section>
+          <section class="feature-topic" aria-labelledby="health-features">
+            <h3 id="health-features">Health &amp; lifecycle</h3>
+            <ul><li data-readme-feature="6">Run vSphere health checks, including host hardware and guest operating-system lifecycle and support status.</li></ul>
+          </section>
+          <section class="feature-topic" aria-labelledby="vcf-features">
+            <h3 id="vcf-features">VCF readiness</h3>
+            <ul><li data-readme-feature="3">Review VMware Cloud Foundation readiness.</li></ul>
+          </section>
+          <section class="feature-topic" aria-labelledby="licensing-features">
+            <h3 id="licensing-features">Licensing &amp; costs</h3>
+            <ul>
+              <li data-readme-feature="5">Estimate required VCF cores and included, additional, or surplus vSAN capacity.</li>
+              <li>Create provider-priced bills of materials.</li>
+            </ul>
+          </section>
+        </div>
+        <div class="feature-column">
+          <section class="feature-topic" aria-labelledby="migration-features">
+            <h3 id="migration-features">Migration &amp; sizing</h3>
+            <ul>
+              <li data-readme-feature="4">Compare HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, and Cold Migration per VM.</li>
+              <li data-readme-feature="7">Assess each workload for migration to OCVS, AVS, or GCVE using HCX vMotion, Replication Assisted vMotion (RAV), Bulk Migration, or Cold Migration.</li>
+              <li data-readme-feature="8">Size cloud VMware clusters with repeatable CPU, memory, failure-capacity, storage, and full-silicon VCF calculations (as per updated core-counting guidance of June 17, 2026. <a href="https://knowledge.broadcom.com/external/article/313548/counting-cores-for-vmware-cloud-foundati.html">Broadcom KB 313548</a>).</li>
+              <li data-readme-feature="9">Explore OCVS shapes, AVS hosts, and GCVE nodes through normal questions.</li>
+            </ul>
+          </section>
+          <section class="feature-topic" aria-labelledby="report-features">
+            <h3 id="report-features">Reports</h3>
+            <ul><li data-readme-feature="10">Create self-contained HTML and Markdown reports.</li></ul>
+          </section>
+        </div>
+      </div>
+      <div class="text-links">
+        <a href="https://github.com/KimTholstorf/rvtools-skill#examples">Examples &amp; full guide →</a>
+        <a href="https://github.com/KimTholstorf/rvtools-skill#sample-reports">Sample report PDFs →</a>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="downloads">
+      <h2 id="downloads">Chat packages</h2>
+      <div class="packages">
+        <article class="package">
+          <span class="badge">Local executor</span>
+          <h3>ChatGPT Desktop</h3>
+          <p>Read a local workbook. Keep parsing, indexes and report files on your computer.</p>
+          <a class="button" href="#pending-publication" aria-label="View Desktop plugin publication status">Desktop package ↓</a>
+        </article>
+        <article class="package">
+          <span class="badge">Uploaded files</span>
+          <h3>ChatGPT Cloud</h3>
+          <p>Analyze an uploaded workbook in the cloud and download the resulting reports.</p>
+          <a class="button" href="#pending-publication" aria-label="View cloud plugin publication status">Cloud package ↓</a>
+        </article>
+      </div>
+      <div class="claude-chat">
+        <div><h3>Claude Desktop Chat</h3><p>Upload the skill ZIP in Settings → Customize → Skills.</p></div>
+        <a data-package="rvtools-skill-" href="https://github.com/KimTholstorf/rvtools-skill/releases/latest" aria-label="Get the Claude Desktop skill ZIP from GitHub">Claude skill ZIP ↗</a>
+      </div>
+      <p class="note" id="release-status" role="status">The Claude skill ZIP follows the latest GitHub release.</p>
+    </section>
+
+    <section class="card" aria-labelledby="install">
+      <h2 id="install">Install in your coding agent</h2>
+      <div class="install">
+        <div class="install-heading"><h3>Codex</h3><button type="button" data-copy="codex-install" aria-label="Copy Codex install commands" hidden>Copy</button></div>
+        <pre tabindex="0" aria-label="Codex install commands"><code id="codex-install">codex plugin marketplace add KimTholstorf/rvtools-skill
+codex plugin add rvtools-analyzer@rvtools-analyzer</code></pre>
+      </div>
+      <div class="install">
+        <div class="install-heading"><h3>Claude Code</h3><button type="button" data-copy="claude-install" aria-label="Copy Claude Code install commands" hidden>Copy</button></div>
+        <pre tabindex="0" aria-label="Claude Code install commands"><code id="claude-install">claude plugin marketplace add KimTholstorf/rvtools-skill
+claude plugin install rvtools@rvtools-analyzer</code></pre>
+      </div>
+      <p class="note">Start a fresh session, give it a local workbook path and ask your question. Python 3.8+ required; dependencies are installed privately on demand. <a href="https://github.com/KimTholstorf/rvtools-skill#install-and-update">Setup &amp; updates →</a></p>
+      <p id="copy-status" class="sr-only" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="card" aria-labelledby="usage-examples">
+      <h2 id="usage-examples">Usage examples</h2>
+      <p class="lead">With your workbook available, invoke the installed skill or plugin in chat:</p>
+      <ul class="examples">
+        <li data-readme-example="1" data-platform="codex"><span class="example-platform">Codex skill</span><pre><code>$rvtools-analyzer How many virtual machines are powered off?</code></pre></li>
+        <li data-readme-example="3" data-platform="claude-code"><span class="example-platform">Claude Code plugin</span><pre><code>/rvtools:analyze What are the CPU and memory overcommit ratios for cluster Production?</code></pre></li>
+        <li data-readme-example="8" data-platform="chatgpt-desktop"><span class="example-platform">ChatGPT Desktop plugin</span><pre><code>@RVTools Analyzer Desktop Run a vSphere health check and create an HTML report.</code></pre></li>
+        <li data-readme-example="9" data-platform="chatgpt-cloud"><span class="example-platform">ChatGPT cloud plugin</span><pre><code>@RVTools Analyzer Assess this environment for an OCVS migration using HCX.</code></pre></li>
+        <li data-readme-example="14" data-platform="codex"><span class="example-platform">Codex skill</span><pre><code>$rvtools-analyzer Size this estate for OCVS with the recommended assumptions and retain the existing populated cluster structure.</code></pre></li>
+        <li data-readme-example="18" data-platform="claude-code"><span class="example-platform">Claude Code plugin</span><pre><code>/rvtools:analyze Create an OCVS sizing report with a provider-specific bill of materials in EUR.</code></pre></li>
+      </ul>
+      <p class="note">These are chat prompts, not terminal commands. In ChatGPT, type <code>@</code> and select <strong>RVTools Analyzer Desktop</strong> or <strong>RVTools Analyzer</strong> from the menu; the names above represent that selected mention.</p>
+      <details>
+        <summary>More examples (13)</summary>
+        <ul class="examples">
+          <li data-readme-example="2" data-platform="codex"><span class="example-platform">Codex skill</span><pre><code>$rvtools-analyzer How many Linux VMs run in each cluster?</code></pre></li>
+          <li data-readme-example="4" data-platform="claude-code"><span class="example-platform">Claude Code plugin</span><pre><code>/rvtools:analyze List the host vendors, models, CPU models, and Hyper-Threading state.</code></pre></li>
+          <li data-readme-example="5" data-platform="chatgpt-desktop"><span class="example-platform">ChatGPT Desktop plugin</span><pre><code>@RVTools Analyzer Desktop Which VMs run guest operating systems that are out of support or in extended support?</code></pre></li>
+          <li data-readme-example="6" data-platform="codex"><span class="example-platform">Codex skill</span><pre><code>$rvtools-analyzer What VMware licences are recorded in this export? Don’t show the licence keys.</code></pre></li>
+          <li data-readme-example="7" data-platform="claude-code"><span class="example-platform">Claude Code plugin</span><pre><code>/rvtools:analyze How many VCF cores does this estate need, and will it need extra vSAN capacity?</code></pre></li>
+          <li data-readme-example="10" data-platform="chatgpt-cloud"><span class="example-platform">ChatGPT cloud plugin</span><pre><code>@RVTools Analyzer Which VMs would block RAV when moving to Azure VMware Solution (AVS)?</code></pre></li>
+          <li data-readme-example="11" data-platform="codex"><span class="example-platform">Codex skill</span><pre><code>$rvtools-analyzer How many VMs are eligible for Bulk Migration to AVS, grouped by cluster?</code></pre></li>
+          <li data-readme-example="12" data-platform="chatgpt-cloud"><span class="example-platform">ChatGPT cloud plugin</span><pre><code>@RVTools Analyzer Assess this estate for Google Cloud VMware Engine (GCVE), and compare the suitable node types.</code></pre></li>
+          <li data-readme-example="13" data-platform="claude-code"><span class="example-platform">Claude Code plugin</span><pre><code>/rvtools:analyze Show the CPU, memory, and raw storage for GCVE ve2-standard-128.</code></pre></li>
+          <li data-readme-example="15" data-platform="codex"><span class="example-platform">Codex skill</span><pre><code>$rvtools-analyzer Use provisioned storage as-is, but show what a 25% storage allowance would add to the monthly estimate.</code></pre></li>
+          <li data-readme-example="16" data-platform="claude-code"><span class="example-platform">Claude Code plugin</span><pre><code>/rvtools:analyze Compare powered-on-only sizing with all non-template VMs, keeping every other assumption the same.</code></pre></li>
+          <li data-readme-example="17" data-platform="chatgpt-desktop"><span class="example-platform">ChatGPT Desktop plugin</span><pre><code>@RVTools Analyzer Desktop Size this estate for OCVS with 10% CPU and RAM headroom, no memory overcommit, and one-host resilience.</code></pre></li>
+          <li data-readme-example="19" data-platform="chatgpt-cloud"><span class="example-platform">ChatGPT cloud plugin</span><pre><code>@RVTools Analyzer Price this AVS sizing in West Europe and show which lines could not be priced.</code></pre></li>
+        </ul>
+      </details>
+      <p class="note"><a href="https://github.com/KimTholstorf/rvtools-skill#examples">Examples &amp; usage details on GitHub →</a></p>
+    </section>
+
+    <section class="card privacy" aria-labelledby="privacy">
+      <h2 id="privacy">Choose where your workbook runs</h2>
+      <p>Desktop and CLI sessions can read local files. Cloud chats require an upload. Local processing is not offline AI: selected findings and tool results can still reach your AI provider.</p>
+      <div class="text-links">
+        <a href="https://github.com/KimTholstorf/rvtools-skill#data-handling-and-privacy">Privacy details →</a>
+        <a href="https://rvtools.help/">Need to anonymize an export? ↗</a>
+      </div>
+    </section>
+    <section class="card" aria-labelledby="pending-publication">
+      <h2 id="pending-publication">Pending publication</h2>
+      <p class="lead">The public ChatGPT listings for <strong>RVTools Analyzer</strong> and <strong>RVTools Analyzer Desktop</strong> are not available yet. We'll link directly to them here once they're published.</p>
+      <p class="note">A published Claude plugin is on its way too. In the meantime, you can use the Claude skill ZIP above or install through Codex or Claude Code.</p>
+    </section>
+    <footer>
+      <span>MIT License · Kim Tholstorf</span>
+      <a href="https://github.com/KimTholstorf/rvtools-skill">Source, documentation &amp; issues ↗</a>
+    </footer>
+  </main>
+
+  <script>
+    // The page never accepts workbooks. Its only request is public release metadata.
+    document.querySelectorAll('[data-copy]').forEach(button => {
+      button.hidden = false;
+      button.addEventListener('click', async () => {
+        const code = document.getElementById(button.dataset.copy);
+        const status = document.getElementById('copy-status');
+        try {
+          await navigator.clipboard.writeText(code.textContent.trim());
+          button.textContent = 'Copied';
+          status.textContent = 'Install commands copied.';
+        } catch {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(code);
+          selection.removeAllRanges();
+          selection.addRange(range);
+          button.textContent = 'Selected';
+          status.textContent = 'Commands selected. Press Command+C or Control+C to copy.';
+        }
+        window.setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+      });
+    });
+
+    async function resolveDownloads() {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 5000);
+      try {
+        const response = await fetch('https://api.github.com/repos/KimTholstorf/rvtools-skill/releases/latest', { signal: controller.signal });
+        if (!response.ok) return;
+        const release = await response.json();
+        if (!/^v\d+\.\d+\.\d+$/.test(release.tag_name) || !Array.isArray(release.assets)) return;
+        let resolved = 0;
+        const downloads = document.querySelectorAll('[data-package]');
+        downloads.forEach(link => {
+          const name = link.dataset.package + release.tag_name.slice(1) + '.zip';
+          const asset = release.assets.find(item => item.name === name);
+          if (!asset) return;
+          let url;
+          try { url = new URL(asset.browser_download_url); } catch { return; }
+          const expected = '/KimTholstorf/rvtools-skill/releases/download/' + release.tag_name + '/' + name;
+          if (url.origin !== 'https://github.com' || url.pathname !== expected || url.search || url.hash || url.username || url.password) return;
+          link.href = url.href;
+          resolved += 1;
+        });
+        document.getElementById('release-status').textContent = 'Latest release: ' + release.tag_name + (resolved === downloads.length ? '. All linked downloads available.' : '. Missing downloads link to release assets until available.');
+      } catch {
+        // Offline, rate-limited or blocked: the ordinary GitHub links still work.
+      } finally {
+        window.clearTimeout(timeout);
+      }
+    }
+    resolveDownloads();
+  </script>
+</body>
+</html>

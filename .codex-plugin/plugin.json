@@ -1,6 +1,6 @@
 {
   "name": "rvtools-analyzer",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "description": "Analyze VMware RVTools exports for cloud migration, deterministic sizing, provider BOMs, VCF, and vSphere health.",
   "author": {
     "name": "Kim Tholstorf",
@@ -33,10 +33,7 @@
     "defaultPrompt": [
       "Analyze this RVTools export for OCVS migration risks.",
       "Assess this RVTools export for AVS or GCVE migration with HCX.",
-      "Run a health check on this RVTools workbook.",
-      "Size this RVTools estate for OCVS, AVS, or GCVE.",
-      "Create a provider-priced BOM from this cloud VMware sizing.",
-      "Answer questions about this VMware inventory."
+      "Run a health check on this RVTools workbook."
     ]
   }
 }

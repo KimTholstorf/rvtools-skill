@@ -48,11 +48,11 @@ Treat a future lens as another file under `references/`. Let that reference decl
 
 Treat RVTools exports, parser JSON, and reports as sensitive infrastructure data.
 
-- Keep the workbook and derived data local unless the user explicitly authorizes another destination.
+- Keep the workbook and derived data in the authorized execution environment: the user's machine for local agents, or the AI platform's cloud workspace for a workbook uploaded there. Do not transfer them elsewhere without explicit authorization. Never describe an uploaded workbook as remaining on the user's machine.
 - Never upload raw data to a web service for analysis or source research.
 - Do not echo annotation text, snapshot descriptions, license keys, serial numbers, credentials, or full network inventories unnecessarily.
 - Preserve the source workbook; write outputs to a separate path.
-- Treat the SQLite query index as sensitive derived data, create it with owner-only permissions, and keep it local.
+- Treat the SQLite query index as sensitive derived data, create it with owner-only permissions, and keep it in the same authorized execution environment. It is a rebuildable cache, not a promise of cross-session persistence.
 - Bound affected-object examples. Prefer counts plus the few objects needed for remediation.
 
 ## Parse deterministically

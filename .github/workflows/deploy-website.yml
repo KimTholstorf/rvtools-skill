@@ -1,0 +1,49 @@
+name: Deploy analyzer website
+
+# One-time setup: Settings > Pages > Source: GitHub Actions;
+# Custom domain: analyzer.rvtools.help. Enable HTTPS once the certificate is ready.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - "tests/test_website.py"
+      - ".github/workflows/deploy-website.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the static site and its links
+        env:
+          PYTHONDONTWRITEBYTECODE: "1"
+        run: python -m unittest discover -s tests -p test_website.py
+      - uses: actions/configure-pages@v5
+      - name: Upload only the public website
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: web
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
