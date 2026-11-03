@@ -215,6 +215,27 @@ class ChatGPTPackageTests(unittest.TestCase):
                 self.assertEqual(archive.read("skills/rvtools-analyzer/agents/openai.yaml"),
                                  (ROOT / "agents/openai.yaml").read_bytes())
 
+    def test_both_packages_link_to_support_and_repository_policies(self):
+        expected = {
+            "supportURL": "https://github.com/KimTholstorf/rvtools-skill/issues",
+            "privacyPolicyURL": "https://github.com/KimTholstorf/rvtools-skill/blob/main/PRIVACY.md",
+            "termsOfServiceURL": "https://github.com/KimTholstorf/rvtools-skill/blob/main/TOS.md",
+        }
+        for variant in ("desktop", "cloud"):
+            with self.subTest(variant=variant), zipfile.ZipFile(self.build(variant=variant)) as archive:
+                interface = json.loads(archive.read("plugin.json"))["extensions"]["com.openai"]["interface"]
+                for field, url in expected.items():
+                    self.assertEqual(interface.get(field), url)
+
+    def test_policy_links_have_repository_documents(self):
+        for filename, title in (("PRIVACY.md", "Privacy policy"), ("TOS.md", "Terms of service")):
+            with self.subTest(filename=filename):
+                path = ROOT / filename
+                self.assertTrue(path.is_file(), "The linked policy must exist in the repository")
+                policy = path.read_text(encoding="utf-8")
+                self.assertTrue(policy.startswith("# " + title))
+                self.assertIn("https://github.com/KimTholstorf/rvtools-skill/issues", policy)
+
     def test_unknown_variant_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "variant"):
             self.build(variant="unknown")

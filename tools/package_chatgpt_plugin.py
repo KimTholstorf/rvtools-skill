@@ -22,6 +22,11 @@ RUNTIME = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(RUNTIME)
 SKILL_PATH = "skills/rvtools-analyzer/"
 WEBSITE = "https://analyzer.rvtools.help/"
+PUBLIC_LISTING_URLS = {
+    "supportURL": "https://github.com/KimTholstorf/rvtools-skill/issues",
+    "privacyPolicyURL": "https://github.com/KimTholstorf/rvtools-skill/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/KimTholstorf/rvtools-skill/blob/main/TOS.md",
+}
 VARIANTS = {
     "desktop": {
         "display_name": "RVTools Analyzer Desktop",
@@ -89,6 +94,7 @@ def portable_manifest(root, variant):
     interface["shortDescription"] = profile["subtitle"]
     interface["longDescription"] += " " + profile["description"]
     interface["websiteURL"] = WEBSITE
+    interface.update(PUBLIC_LISTING_URLS)
     interface["logo"] = "./assets/icon.png"
     interface["composerIcon"] = "./assets/icon.png"
     interface["capabilities"] = (["Instructions", "Local file analysis", "Reports"]
